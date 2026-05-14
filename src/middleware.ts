@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const TOKEN_COOKIE = 'leadmappro_token'
 
-const PUBLIC_PATHS = ['/', '/auth', '/bloqueado']
+const PUBLIC_PATHS = ['/', '/login', '/bloqueado']
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get(TOKEN_COOKIE)?.value
@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
   if (isPublic) return NextResponse.next()
 
   if (!token) {
-    return NextResponse.redirect(new URL('/auth', request.url))
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return NextResponse.next()
