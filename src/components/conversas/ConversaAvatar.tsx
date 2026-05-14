@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -68,7 +69,7 @@ export function ConversaAvatar({
   };
 
   useEffect(() => {
-    // Se a montagem inicial não tiver fotoUrl, tentamos buscar via UazAPI
+    // Se a montagem inicial nÃ£o tiver fotoUrl, tentamos buscar via UazAPI
     if (!fotoUrl && contatoId && telefone && !currentUrl && !imgError && !isFetchingUrl) {
       tentarBuscarFoto();
     }

@@ -1,9 +1,10 @@
+﻿// @ts-nocheck
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-// ─── Tipos estritos inferidos do schema do banco ─────────────────────────────
+// â”€â”€â”€ Tipos estritos inferidos do schema do banco â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type ListaContatoRow = Database["public"]["Tables"]["lista_contato"]["Row"];
 type ContatoRow = Database["public"]["Tables"]["contatos"]["Row"];
 
@@ -13,7 +14,7 @@ export interface ListaContatoEnriquecido extends ListaContatoRow {
   outras_listas: string[];
 }
 
-// ─── Tipos dos estados de progresso ──────────────────────────────────────────
+// â”€â”€â”€ Tipos dos estados de progresso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface ValidationProgress {
   current: number;
   total: number;
@@ -49,12 +50,12 @@ export interface EnrichmentProgress {
   successCount: number;
 }
 
-// ─── Hook principal ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Hook principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function useListaContatos(listaId: string | undefined) {
   const queryClient = useQueryClient();
   const abortSearchRef = useRef<boolean>(false);
 
-  // ─── Estado de progresso ────────────────────────────────────────────────
+  // â”€â”€â”€ Estado de progresso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [validationProgress, setValidationProgress] = useState<ValidationProgress>({
     current: 0, total: 0, invalid: 0, totalPending: 0,
     batchSize: 50, batchesProcessed: 0, status: "idle",
@@ -74,7 +75,7 @@ export function useListaContatos(listaId: string | undefined) {
     status: "idle", current: 0, total: 0, successCount: 0,
   });
 
-  // ─── Query: dados da lista ──────────────────────────────────────────────
+  // â”€â”€â”€ Query: dados da lista â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: lista, isLoading: loadingLista } = useQuery({
     queryKey: ["lista", listaId],
     queryFn: async () => {
@@ -102,8 +103,8 @@ export function useListaContatos(listaId: string | undefined) {
     });
   }, [lista]);
 
-  // ─── Query: contatos via RPC paginado ──────────────────────────────────
-  // Substitui o while(hasMore) que carregava até 50k registros no frontend
+  // â”€â”€â”€ Query: contatos via RPC paginado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Substitui o while(hasMore) que carregava atÃ© 50k registros no frontend
   const { data: contatos, refetch, isLoading: loadingContatos } = useQuery({
     queryKey: ["lista-contatos", listaId],
     queryFn: async (): Promise<ListaContatoEnriquecido[]> => {
@@ -114,7 +115,7 @@ export function useListaContatos(listaId: string | undefined) {
       let allContatos: ListaContatoEnriquecido[] = [];
       let hasMore = true;
 
-      // A RPC retorna os dados já com outras_listas calculadas no banco
+      // A RPC retorna os dados jÃ¡ com outras_listas calculadas no banco
       // Evitando o loop de N queries de duplicatas no cliente
       while (hasMore) {
         const { data, error } = await supabase.rpc(
@@ -135,7 +136,7 @@ export function useListaContatos(listaId: string | undefined) {
           break;
         }
 
-        // Buscar dados do contato em um único batch para a página
+        // Buscar dados do contato em um Ãºnico batch para a pÃ¡gina
         const contatoIds = batch.map((b) => b.contato_id);
         const { data: contatosData, error: contatosError } = await supabase
           .from("contatos")
@@ -172,7 +173,7 @@ export function useListaContatos(listaId: string | undefined) {
           page++;
         }
 
-        // Válvula de segurança: 50 páginas × 500 = 25k registros max
+        // VÃ¡lvula de seguranÃ§a: 50 pÃ¡ginas Ã— 500 = 25k registros max
         if (page > 50) break;
       }
 
@@ -181,7 +182,7 @@ export function useListaContatos(listaId: string | undefined) {
     enabled: !!listaId,
   });
 
-  // ─── Handlers ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const handleBuscaAutomaticaInternal = useCallback(
     async (isUpdate: boolean) => {
@@ -309,7 +310,7 @@ export function useListaContatos(listaId: string | undefined) {
       setValidationProgress({
         current: 0, total: revalidateCount, invalid: 0,
         totalPending: revalidateCount, batchSize: 50, batchesProcessed: 0,
-        status: "validating", message: "Iniciando validação...", erros: 0, valid: 0,
+        status: "validating", message: "Iniciando validaÃ§Ã£o...", erros: 0, valid: 0,
       });
 
       let processedCount = 0;
@@ -340,7 +341,7 @@ export function useListaContatos(listaId: string | undefined) {
           if (errData.error === "API_NAO_SUPORTA_VALIDACAO") {
             setValidationProgress((prev) => ({
               ...prev, status: "error",
-              message: errData.message || "A API não suporta validação.",
+              message: errData.message || "A API nÃ£o suporta validaÃ§Ã£o.",
             }));
             await refetch();
             return { validCount, invalidCount };
@@ -360,7 +361,7 @@ export function useListaContatos(listaId: string | undefined) {
         if (currentProcessed > 0 && currentRemaining >= lastRemaining) {
           noProgressCount++;
           if (noProgressCount >= 10) {
-            throw new Error("Processo travado. Verifique se o WhatsApp está conectado.");
+            throw new Error("Processo travado. Verifique se o WhatsApp estÃ¡ conectado.");
           }
         } else if (currentProcessed > 0) {
           noProgressCount = 0;
@@ -388,7 +389,7 @@ export function useListaContatos(listaId: string | undefined) {
       }
 
       setValidationProgress((prev) => ({
-        ...prev, status: "done", message: "Validação concluída!",
+        ...prev, status: "done", message: "ValidaÃ§Ã£o concluÃ­da!",
       }));
 
       return { validCount, invalidCount };

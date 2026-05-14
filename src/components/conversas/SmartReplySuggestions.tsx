@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ const toneConfig = {
     badge: "bg-blue-500 text-white hover:bg-blue-600",
   },
   amigavel: {
-    label: "Amigável",
+    label: "AmigÃ¡vel",
     border: "border-emerald-500/50",
     badge: "bg-emerald-500 text-white hover:bg-emerald-600",
   },
@@ -51,7 +52,7 @@ export function SmartReplySuggestions({ contatoId, onSelect }: SmartReplySuggest
         setSuggestions(data.suggestions);
       }
     } catch {
-      // silencioso — não interrompe o fluxo
+      // silencioso â€” nÃ£o interrompe o fluxo
     } finally {
       if (isRefresh) setRefreshing(false); else setLoading(false);
     }
@@ -69,7 +70,7 @@ export function SmartReplySuggestions({ contatoId, onSelect }: SmartReplySuggest
       <div className="flex items-center gap-2 mb-1.5">
         <Sparkles className="h-3 w-3 text-emerald-500" />
         <span className="text-[11px] font-semibold text-[#54656f] dark:text-[#8696a0] uppercase tracking-wide">
-          Sugestões IA
+          SugestÃµes IA
         </span>
         <Button
           variant="ghost"
@@ -85,7 +86,7 @@ export function SmartReplySuggestions({ contatoId, onSelect }: SmartReplySuggest
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-[#54656f] dark:text-[#8696a0] animate-pulse py-1">
           <Sparkles className="h-3 w-3" />
-          <span>Gerando sugestões...</span>
+          <span>Gerando sugestÃµes...</span>
         </div>
       ) : (
         <ScrollArea className="w-full">

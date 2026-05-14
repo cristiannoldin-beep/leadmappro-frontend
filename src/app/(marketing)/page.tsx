@@ -1,3 +1,5 @@
-import Landing from '../(dashboard)/Landing'
+import { redirect } from 'next/navigation'
 
-export default Landing
+export default function HomePage() {
+  redirect('/auth/login')
+}

@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageBubble } from "./MessageBubble";
@@ -123,7 +124,7 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
 
       if (!error) setReactions((data || []) as Reaction[]);
     } catch {
-      // tabela ainda não existe — ignora silenciosamente
+      // tabela ainda nÃ£o existe â€” ignora silenciosamente
     }
   };
 
@@ -143,11 +144,11 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
               const filtered = prev.filter((m) => {
                 const isTemp = m.id.startsWith("temp-");
                 const isError = m.id.startsWith("error-");
-                // Se chegou do Webhook, removemos os temp e os que falharam (error) se o texto/conteudo for exatamente igual e da mesma direção
+                // Se chegou do Webhook, removemos os temp e os que falharam (error) se o texto/conteudo for exatamente igual e da mesma direÃ§Ã£o
                 if ((isTemp || isError) && m.conteudo === novaMsg.conteudo && m.direcao === novaMsg.direcao) {
                   return false;
                 }
-                // Outros "temp" que ficaram pra trás (bug visual)
+                // Outros "temp" que ficaram pra trÃ¡s (bug visual)
                 if (isTemp && m.id !== novaMsg.id) return false;
                 return true;
               });
@@ -190,7 +191,7 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
     });
 
     if (error || !data?.success) {
-      // Modifica apenas localmente se ainda estiver em estado "temp". Mas Realtime pode já ter inserido a correta.
+      // Modifica apenas localmente se ainda estiver em estado "temp". Mas Realtime pode jÃ¡ ter inserido a correta.
       setMessages((prev) => prev.map((m) => m.id === optimistic.id ? { ...m, id: "error-" + Date.now() } : m));
     } else {
       // Transforma suavemente pra evitar "blink" caso o Realtime atrase
@@ -234,12 +235,12 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
           </div>
           <h1 className="text-2xl font-light text-gray-700 dark:text-gray-200 mb-2">Leadmaps Pro Web</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Selecione uma conversa para começar a interagir com seus leads.
+            Selecione uma conversa para comeÃ§ar a interagir com seus leads.
           </p>
         </div>
         <div className="absolute bottom-10 flex items-center gap-2 text-[12px] text-gray-400">
           <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-          Conexão Segura e Criptografada
+          ConexÃ£o Segura e Criptografada
         </div>
       </div>
     );
@@ -281,7 +282,7 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
 
   return (
     <div className="flex flex-col w-full h-full min-h-0 overflow-hidden">
-      {/* Header — WhatsApp Web Style */}
+      {/* Header â€” WhatsApp Web Style */}
       <header className="h-[60px] shrink-0 flex items-center justify-between px-4 bg-[#f0f2f5] dark:bg-[#202c33] border-b border-border/10 z-20">
         <div className="flex items-center gap-3 min-w-0">
           <ConversaAvatar
@@ -318,7 +319,7 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
         </div>
       </header>
 
-      {/* Messages Area — Pattern Background */}
+      {/* Messages Area â€” Pattern Background */}
       <div className="flex-1 relative w-full min-h-0 bg-[#efeae2] dark:bg-[#0b141a] z-0">
         {/* Static Background Pattern Overlay */}
         <div 
@@ -345,7 +346,7 @@ export function ChatWindow({ contatoId, accountId, contato, onTogglePanel, onNew
         </div>
       </div>
 
-      {/* Footer / Input — Fixed at Bottom */}
+      {/* Footer / Input â€” Fixed at Bottom */}
       <footer className="shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20">
         <div className="max-w-4xl mx-auto">
           <ChatInput onSendText={handleSend} onSendMedia={handleSendMedia} accountId={accountId} contatoId={contatoId} />

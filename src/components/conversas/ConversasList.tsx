@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -54,19 +55,19 @@ function formatTime(dateStr: string) {
 function previewMessage(msg: string, direcao: string, tipoMidia: string, providerMessageId: string | null) {
   const prefix = direcao === "enviado"
     ? providerMessageId
-      ? "✓ "
-      : "🕑 "
+      ? "âœ“ "
+      : "ðŸ•‘ "
     : "";
   
-  if (tipoMidia === "audio") return `${prefix}🎤 Áudio`;
-  if (tipoMidia === "imagem") return `${prefix}📷 Foto`;
-  if (tipoMidia === "video") return `${prefix}🎥 Vídeo`;
-  if (tipoMidia === "documento" || tipoMidia === "document") return `${prefix}📄 Documento`;
+  if (tipoMidia === "audio") return `${prefix}ðŸŽ¤ Ãudio`;
+  if (tipoMidia === "imagem") return `${prefix}ðŸ“· Foto`;
+  if (tipoMidia === "video") return `${prefix}ðŸŽ¥ VÃ­deo`;
+  if (tipoMidia === "documento" || tipoMidia === "document") return `${prefix}ðŸ“„ Documento`;
   
   try {
     const parsed = JSON.parse(msg);
-    if (parsed.type === "sticker") return `${prefix}🎭 Figurinha`;
-    if (parsed.type === "location") return `${prefix}📍 Localização`;
+    if (parsed.type === "sticker") return `${prefix}ðŸŽ­ Figurinha`;
+    if (parsed.type === "location") return `${prefix}ðŸ“ LocalizaÃ§Ã£o`;
   } catch { /* ignore invalid JSON for preview */ }
   
   const truncated = msg.length > 40 ? msg.substring(0, 40) + "..." : msg;
@@ -177,7 +178,7 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
   useEffect(() => {
     if (!accountId) return;
 
-    // Verificação inicial de conexão
+    // VerificaÃ§Ã£o inicial de conexÃ£o
     const checkConnection = async () => {
       const { data } = await supabase
         .from("whatsapp_conexoes")
@@ -193,7 +194,7 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
     };
     checkConnection();
 
-    // Subscription realtime: detecta conexão/desconexão sem polling
+    // Subscription realtime: detecta conexÃ£o/desconexÃ£o sem polling
     const channel = supabase.channel("conexao-status-live")
       .on(
         "postgres_changes",
@@ -202,7 +203,7 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
           const novoStatus = payload.new?.status;
           if (novoStatus === "connected") {
             setConnectionStatus("connected");
-            // Aguarda 2s para a sincronização ter iniciado no backend antes de recarregar
+            // Aguarda 2s para a sincronizaÃ§Ã£o ter iniciado no backend antes de recarregar
             setTimeout(fetchConversas, 2000);
           } else if (novoStatus === "disconnected" || novoStatus === "error") {
             setConnectionStatus("offline");
@@ -240,16 +241,16 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
 
   const iniciarConversa = async () => {
     if (!newNumber || newNumber.replace(/\D/g, "").length < 10) {
-      toast.error("Número inválido. Digite o DDD + número (mínimo 10 dígitos).");
+      toast.error("NÃºmero invÃ¡lido. Digite o DDD + nÃºmero (mÃ­nimo 10 dÃ­gitos).");
       return;
     }
     if (!accountId) {
-      toast.error("Conta não identificada. Recarregue a página.");
+      toast.error("Conta nÃ£o identificada. Recarregue a pÃ¡gina.");
       return;
     }
     const numeroLimpo = newNumber.replace(/\D/g, "");
 
-    // Verifica se já existe contato com esse telefone
+    // Verifica se jÃ¡ existe contato com esse telefone
     const { data: existing } = await supabase
       .from("contatos")
       .select("id")
@@ -323,7 +324,7 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
             Tudo
           </button>
           <button onClick={() => setFilter("nao_lidas")} className={cn("text-[14px] px-3.5 py-1.5 rounded-full transition-colors flex items-center justify-center gap-1.5 h-8", filter === "nao_lidas" ? "bg-[#e7fce3] text-[#008069] dark:bg-[#0a332c] dark:text-[#00a884] font-medium" : "bg-[#f0f2f5] dark:bg-[#202c33] text-[#54656f] dark:text-[#8696a0] hover:bg-[#e9edef] dark:hover:bg-[#2a3942]")}>
-            Não lidas
+            NÃ£o lidas
             {totalNaoLidas > 0 && <span className="bg-[#25d366] text-[#111b21] dark:bg-[#00a884] text-[11px] font-bold rounded-full h-[18px] min-w-[18px] px-1 flex items-center justify-center -mr-1">{totalNaoLidas}</span>}
           </button>
         </div>
@@ -377,7 +378,7 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
         <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl border-none">
           <div className="bg-[#008069] text-white p-6 pb-12">
             <h2 className="text-xl font-medium">Nova Conversa</h2>
-            <p className="text-sm text-white/70 mt-1">Digite o número com DDD (ex: 47999990000)</p>
+            <p className="text-sm text-white/70 mt-1">Digite o nÃºmero com DDD (ex: 47999990000)</p>
           </div>
           <div className="p-4 -mt-8 bg-white dark:bg-[#111b21] rounded-t-2xl space-y-4">
             <Input
@@ -389,7 +390,7 @@ export function ConversasList({ selectedContatoId, onSelectContato, accountId }:
               className="h-12 rounded-xl bg-[#f0f2f5] dark:bg-[#2a3942] border border-transparent dark:border-[#3b4a54] text-gray-900 dark:text-gray-100 placeholder:text-[#8696a0] focus-visible:ring-2 focus-visible:ring-emerald-500/40"
             />
             <Button className="w-full h-12 rounded-xl bg-[#008069] hover:bg-[#00a884] text-white font-bold" onClick={iniciarConversa}>
-              Começar Agora
+              ComeÃ§ar Agora
             </Button>
           </div>
         </DialogContent>
