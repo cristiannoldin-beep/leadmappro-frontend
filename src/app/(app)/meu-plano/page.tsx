@@ -176,7 +176,7 @@ export default function MeuPlanoPage() {
           </div>
           <h2 className="text-4xl font-black tracking-tight">Escolha sua Próxima Etapa</h2>
         </div>
-        <PricingSection isAnnual={true} paymentProvider="asaas" accountId={plano?.id} />
+        <PricingSection isAnnual={true} />
       </div>
     </div>
   )
