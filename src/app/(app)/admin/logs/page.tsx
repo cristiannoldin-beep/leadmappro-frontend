@@ -52,13 +52,18 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     if (user?.role !== 'admin') return
-    api.get<{ logs: Log[] } | Log[]>('/admin/logs')
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data as any).logs ?? []
-        setLogs(list)
-      })
-      .catch(() => setLogs([]))
-      .finally(() => setLoadingLogs(false))
+    const fetchLogs = () => {
+      api.get<{ logs: Log[] } | Log[]>('/admin/logs?limit=100')
+        .then((data) => {
+          const list = Array.isArray(data) ? data : (data as { logs: Log[] }).logs ?? []
+          setLogs(list)
+        })
+        .catch(() => {})
+        .finally(() => setLoadingLogs(false))
+    }
+    fetchLogs()
+    const interval = setInterval(fetchLogs, 10000)
+    return () => clearInterval(interval)
   }, [user])
 
   if (loading || user?.role !== 'admin') {

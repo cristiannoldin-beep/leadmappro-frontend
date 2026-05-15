@@ -16,6 +16,7 @@ import {
   CreditCard,
   Shield,
   FileText,
+  Server,
   LogOut,
   ChevronRight,
 } from 'lucide-react'
@@ -39,6 +40,7 @@ const navItems = [
 
 const adminItems = [
   { href: '/admin', label: 'Painel Admin', icon: Shield },
+  { href: '/admin/infra', label: 'Config SaaS', icon: Server },
   { href: '/admin/logs', label: 'Logs', icon: FileText },
 ]
 
