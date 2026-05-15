@@ -14,10 +14,12 @@ import { Label } from '@/components/ui/label'
 import {
   Database, Server, ShieldCheck, Globe, Lock, Copy,
   CheckCircle2, MessageSquare, Building2, ArrowLeft, Zap, Package,
+  Map, Brain, Loader2, Eye, EyeOff,
 } from 'lucide-react'
 
 type Plan = { id: string; name: string; price: number; limits: Record<string, unknown> }
 type CredStatus = { configured: boolean; statusTeste: string }
+type TestResult = { sucesso: boolean; mensagem: string }
 
 export default function AdminInfraPage() {
   const { user } = useAuth()
@@ -27,12 +29,20 @@ export default function AdminInfraPage() {
   const [asaasStatus, setAsaasStatus] = useState<CredStatus | null>(null)
   const [metaStatus, setMetaStatus] = useState<CredStatus | null>(null)
   const [casaStatus, setCasaStatus] = useState<CredStatus | null>(null)
+  const [googleStatus, setGoogleStatus] = useState<CredStatus | null>(null)
+  const [openaiStatus, setOpenaiStatus] = useState<CredStatus | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [editingPlan, setEditingPlan] = useState<Record<string, { name: string; price: string; limits: string }>>({})
 
   const [asaasInput, setAsaasInput] = useState('')
   const [casaInput, setCasaInput] = useState('')
   const [metaInputs, setMetaInputs] = useState({ appId: '', secret: '', sysToken: '', wabaId: '', verifyToken: '' })
+  const [googleInput, setGoogleInput] = useState('')
+  const [googleShowKey, setGoogleShowKey] = useState(false)
+  const [openaiInput, setOpenaiInput] = useState('')
+  const [openaiShowKey, setOpenaiShowKey] = useState(false)
+  const [testingGoogle, setTestingGoogle] = useState(false)
+  const [testingOpenAI, setTestingOpenAI] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -41,16 +51,35 @@ export default function AdminInfraPage() {
   }, [user])
 
   const loadData = async () => {
-    const [a, m, c, p] = await Promise.allSettled([
+    const [a, m, c, g, o, p] = await Promise.allSettled([
       api.get<CredStatus>('/admin/credenciais/ASAAS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/META_APP_ID'),
       api.get<CredStatus>('/admin/credenciais/CASADOSDADOS_API_KEY'),
+      api.get<CredStatus>('/admin/credenciais/GOOGLE_MAPS_API_KEY'),
+      api.get<CredStatus>('/admin/credenciais/OPENAI_API_KEY'),
       api.get<{ plans: Plan[] }>('/admin/plans'),
     ])
     if (a.status === 'fulfilled') setAsaasStatus(a.value)
     if (m.status === 'fulfilled') setMetaStatus(m.value)
     if (c.status === 'fulfilled') setCasaStatus(c.value)
+    if (g.status === 'fulfilled') setGoogleStatus(g.value)
+    if (o.status === 'fulfilled') setOpenaiStatus(o.value)
     if (p.status === 'fulfilled') setPlans((p.value as { plans: Plan[] }).plans ?? [])
+  }
+
+  const testarIntegracao = async (tipo: 'google_maps' | 'openai') => {
+    const setTesting = tipo === 'google_maps' ? setTestingGoogle : setTestingOpenAI
+    setTesting(true)
+    try {
+      const data = await api.post<TestResult>('/admin/credenciais/testar', { tipo })
+      if (data.sucesso) toast.success(data.mensagem)
+      else toast.error(data.mensagem)
+      loadData()
+    } catch {
+      toast.error('Erro ao testar integração')
+    } finally {
+      setTesting(false)
+    }
   }
 
   const saveCred = async (chave: string, valor: string, clearFn: () => void) => {
@@ -337,6 +366,133 @@ export default function AdminInfraPage() {
                 </div>
               </div>
             </div>
+
+            {/* Row 3: Google Maps + OpenAI */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Google Maps */}
+              <div className="rounded-2xl bg-slate-900 border border-white/5 overflow-hidden">
+                <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-sky-500/10 rounded-xl"><Map className="h-4 w-4 text-sky-400" /></div>
+                    <div>
+                      <p className="font-black text-white text-sm">Google Maps Places API</p>
+                      <p className="text-xs text-slate-500">Para busca automática de empresas</p>
+                    </div>
+                  </div>
+                  <StatusDot ok={!!googleStatus?.configured} />
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                      API Key <Lock className="h-3 w-3 text-slate-700" />
+                    </Label>
+                    <div className="relative flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={googleShowKey ? 'text' : 'password'}
+                          placeholder={googleStatus?.configured ? '••••••••' : 'Insira sua API Key'}
+                          value={googleInput}
+                          onChange={e => setGoogleInput(e.target.value)}
+                          className="bg-slate-800 border-white/10 h-10 rounded-xl text-sm text-slate-300 font-mono focus:border-sky-500 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setGoogleShowKey(v => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        >
+                          {googleShowKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <Button
+                        onClick={() => saveCred('GOOGLE_MAPS_API_KEY', googleInput, () => setGoogleInput(''))}
+                        className="h-10 px-4 bg-sky-600 hover:bg-sky-500 font-black text-xs rounded-xl shadow-lg shadow-sky-600/20"
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => testarIntegracao('google_maps')}
+                      disabled={testingGoogle || !googleStatus?.configured}
+                      className="h-10 px-6 font-black uppercase text-[10px] tracking-widest rounded-xl border-white/10 text-slate-300 hover:bg-white/5 gap-2"
+                    >
+                      {testingGoogle && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Testar Conexão
+                    </Button>
+                    {googleStatus?.statusTeste === 'sucesso' && (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Testada OK
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600">Necessária para a busca por empresas via Google Places. Ativar <span className="text-slate-400">Places API</span> no Google Cloud Console.</p>
+                </div>
+              </div>
+
+              {/* OpenAI */}
+              <div className="rounded-2xl bg-slate-900 border border-white/5 overflow-hidden">
+                <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-500/10 rounded-xl"><Brain className="h-4 w-4 text-purple-400" /></div>
+                    <div>
+                      <p className="font-black text-white text-sm">OpenAI API (IA)</p>
+                      <p className="text-xs text-slate-500">Classificação e respostas automáticas</p>
+                    </div>
+                  </div>
+                  <StatusDot ok={!!openaiStatus?.configured} />
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                      API Key <Lock className="h-3 w-3 text-slate-700" />
+                    </Label>
+                    <div className="relative flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type={openaiShowKey ? 'text' : 'password'}
+                          placeholder={openaiStatus?.configured ? '••••••••' : 'sk-proj-...'}
+                          value={openaiInput}
+                          onChange={e => setOpenaiInput(e.target.value)}
+                          className="bg-slate-800 border-white/10 h-10 rounded-xl text-sm text-slate-300 font-mono focus:border-purple-500 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setOpenaiShowKey(v => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        >
+                          {openaiShowKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <Button
+                        onClick={() => saveCred('OPENAI_API_KEY', openaiInput, () => setOpenaiInput(''))}
+                        className="h-10 px-4 bg-purple-600 hover:bg-purple-500 font-black text-xs rounded-xl shadow-lg shadow-purple-600/20"
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => testarIntegracao('openai')}
+                      disabled={testingOpenAI || !openaiStatus?.configured}
+                      className="h-10 px-6 font-black uppercase text-[10px] tracking-widest rounded-xl border-white/10 text-slate-300 hover:bg-white/5 gap-2"
+                    >
+                      {testingOpenAI && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Testar Conexão
+                    </Button>
+                    {openaiStatus?.statusTeste === 'sucesso' && (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Testada OK
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600">Modelo GPT-4o para classificação de leads e respostas automáticas do SDR. Use uma chave de projeto <span className="text-slate-400">sk-proj-*</span>.</p>
+                </div>
+              </div>
+            </div>
           </>
         )}
 
@@ -431,8 +587,8 @@ export default function AdminInfraPage() {
                   { name: 'Asaas Pagamentos', ok: !!asaasStatus?.configured },
                   { name: 'Casa dos Dados B2B API', ok: !!casaStatus?.configured },
                   { name: 'Meta Cloud API', ok: !!metaStatus?.configured },
-                  { name: 'Google Maps API Search', ok: true },
-                  { name: 'OpenAI GPT-4o Intelligence', ok: true },
+                  { name: 'Google Maps Places API', ok: !!googleStatus?.configured },
+                  { name: 'OpenAI GPT-4o Intelligence', ok: !!openaiStatus?.configured },
                   { name: 'PostgreSQL Database', ok: true },
                   { name: 'Fastify API Runtime', ok: true },
                 ].map(s => (
