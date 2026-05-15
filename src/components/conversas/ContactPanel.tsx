@@ -50,7 +50,7 @@ function sanitizeSocialUrl(url: string, fallbackDomain?: string): string | null 
   return null;
 }
 import { OportunidadeModal } from "@/components/OportunidadeModal";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { ConversaAvatar } from "./ConversaAvatar";
 import { toast } from "sonner";
 
@@ -87,7 +87,7 @@ export function ContactPanel({ contatoId, contato: contatoProp }: ContactPanelPr
   const [contato, setContato] = useState<any>(contatoProp);
   const [analiseIA, setAnaliseIA] = useState<AnaliseIA | null>(null);
   const [loadingAnalise, setLoadingAnalise] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Sync prop to local state
   useEffect(() => { setContato(contatoProp); }, [contatoProp]);
@@ -387,7 +387,7 @@ export function ContactPanel({ contatoId, contato: contatoProp }: ContactPanelPr
               {campanhas.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => navigate(`/campanha/${c.id}`)}
+                  onClick={() => router.push(`/campanhas/${c.id}`)}
                   className="w-full text-left flex items-center justify-between py-1.5 text-xs hover:text-primary transition-colors group"
                 >
                   <div className="flex items-center gap-2 min-w-0">
@@ -423,7 +423,7 @@ export function ContactPanel({ contatoId, contato: contatoProp }: ContactPanelPr
                 <p className="text-[0.75rem] text-muted-foreground/70 line-clamp-2">{oportunidade.observacoes}</p>
               )}
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs text-primary" onClick={() => navigate("/crm")}>
+                <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs text-primary" onClick={() => router.push("/crm")}>
                   Ver no CRM â†’
                 </Button>
               </div>
