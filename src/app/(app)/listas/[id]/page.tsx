@@ -71,7 +71,7 @@ export default function ListaResultadosPage() {
   useEffect(() => {
     api.get<{ lista: Lista }>(`/listas/${id}`)
       .then((data) => {
-        const l = (data as any).lista ?? (data as Lista)
+        const l = data.lista
         setLista(l)
         setBuscarQuery(l.segmento ?? '')
         setNextPageToken(l.googleNextPageToken ?? null)
