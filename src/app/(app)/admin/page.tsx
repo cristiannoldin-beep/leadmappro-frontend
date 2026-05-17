@@ -427,7 +427,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 mb-1">WhatsApp / Celular</p>
-                  <p className="text-sm font-medium text-white">{selectedAccount?.owner?.celular ?? 'Não informado'}</p>
+                  <p className="text-sm font-medium text-white">{selectedAccount?.owner?.celular || 'Não informado'}</p>
                 </div>
               </div>
             </div>
