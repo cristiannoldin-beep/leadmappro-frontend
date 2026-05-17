@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Play, Pause, Eye, Sparkles, Trash2, Loader2 } from 'lucide-react'
 
@@ -43,9 +44,9 @@ interface Campanha {
   id: string
   nome: string
   ativo: boolean
-  lista_id?: string
-  lista_nome?: string
-  limite_envios_dia?: number
+  listaId?: string
+  lista?: { nome: string }
+  limiteEnviosDia?: number
   tipo?: string
 }
 
@@ -66,6 +67,8 @@ export default function CampanhasPage() {
   const [formNome, setFormNome] = useState('')
   const [formListaId, setFormListaId] = useState('')
   const [formLimite, setFormLimite] = useState('30')
+  const [formMensagem, setFormMensagem] = useState('')
+  const [formTipo, setFormTipo] = useState<'prospeccao_fria' | 'reativacao_inativos'>('prospeccao_fria')
 
   const fetchCampanhas = () => {
     api.get<{ campanhas: Campanha[] } | Campanha[]>('/campanhas')
@@ -111,25 +114,26 @@ export default function CampanhasPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formNome.trim() || !formListaId) {
-      toast.error('Preencha nome e lista.')
+    if (!formNome.trim() || !formListaId || !formMensagem.trim()) {
+      toast.error('Preencha nome, lista e mensagem base.')
       return
     }
     setSaving(true)
     try {
-      const data = await api.post<{ campanha?: Campanha }>('/campanhas', {
+      const data = await api.post<{ campanha: Campanha }>('/campanhas', {
         nome: formNome,
-        lista_id: formListaId,
-        limite_envios_dia: parseInt(formLimite) || 30,
-        ativo: false,
+        listaId: formListaId,
+        tipo: formTipo,
+        limiteEnviosDia: parseInt(formLimite) || 30,
+        mensagemBase: formMensagem,
       })
-      const nova = (data as any).campanha ?? data
-      setCampanhas((prev) => [nova, ...prev])
+      setCampanhas((prev) => [data.campanha, ...prev])
       toast.success('Campanha criada!')
       setModalOpen(false)
       setFormNome('')
       setFormListaId('')
       setFormLimite('30')
+      setFormMensagem('')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao criar campanha.'
       toast.error(msg)
@@ -192,7 +196,7 @@ export default function CampanhasPage() {
                       onClick={() => router.push(`/campanhas/${campanha.id}`)}
                     >
                       <TableCell className="font-medium">{campanha.nome}</TableCell>
-                      <TableCell>{campanha.lista_nome ?? 'N/A'}</TableCell>
+                      <TableCell>{campanha.lista?.nome ?? 'N/A'}</TableCell>
                       <TableCell>
                         {campanha.ativo ? (
                           <Badge className="bg-green-500/10 text-green-500 border-none">Ativa</Badge>
@@ -200,7 +204,7 @@ export default function CampanhasPage() {
                           <Badge variant="secondary">Pausada</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{campanha.limite_envios_dia ?? 30} envios/dia</TableCell>
+                      <TableCell>{campanha.limiteEnviosDia ?? 30} envios/dia</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1">
                           <Button
@@ -319,6 +323,18 @@ export default function CampanhasPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="camp-tipo">Tipo de Campanha</Label>
+              <Select value={formTipo} onValueChange={(v) => setFormTipo(v as typeof formTipo)}>
+                <SelectTrigger id="camp-tipo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prospeccao_fria">Prospecção Fria</SelectItem>
+                  <SelectItem value="reativacao_inativos">Reativação de Inativos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="camp-limite">Limite de envios por dia</Label>
               <Input
                 id="camp-limite"
@@ -328,6 +344,18 @@ export default function CampanhasPage() {
                 value={formLimite}
                 onChange={(e) => setFormLimite(e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="camp-msg">Mensagem Base *</Label>
+              <Textarea
+                id="camp-msg"
+                placeholder={`Olá {nome_empresa}, tudo bem?\n\nVim falar sobre...`}
+                value={formMensagem}
+                onChange={(e) => setFormMensagem(e.target.value)}
+                rows={4}
+                required
+              />
+              <p className="text-xs text-muted-foreground">Variáveis: {'{nome_empresa}'}, {'{cidade}'}, {'{estado}'}</p>
             </div>
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={saving} className="flex-1">

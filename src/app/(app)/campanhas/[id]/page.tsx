@@ -12,18 +12,19 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save, Loader2, Play, Pause, List } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Play, Pause, List, Zap } from 'lucide-react'
 
 interface Campanha {
   id: string
   nome: string
   ativo: boolean
-  lista_id?: string
-  lista_nome?: string
-  limite_envios_dia?: number
+  listaId?: string
+  lista?: { id: string; nome: string }
+  limiteEnviosDia?: number
   tipo?: string
-  mensagem_base?: string
+  mensagemBase?: string
   createdAt?: string
+  totalContatos?: number
   totalEnviados?: number
   totalPendentes?: number
 }
@@ -36,17 +37,32 @@ export default function CampanhaDetalhesPage() {
   const [campanha, setCampanha] = useState<Campanha | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [iniciando, setIniciando] = useState(false)
 
   const [editNome, setEditNome] = useState('')
   const [editMensagem, setEditMensagem] = useState('')
 
+  const handleIniciar = async () => {
+    setIniciando(true)
+    try {
+      const result = await api.post<{ inseridos: number; message?: string }>(`/campanhas/${id}/iniciar`, {})
+      toast.success(result.message ?? `${result.inseridos} contatos adicionados à campanha!`)
+      const refreshed = await api.get<{ campanha: Campanha }>(`/campanhas/${id}`)
+      setCampanha(refreshed.campanha)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao iniciar campanha.')
+    } finally {
+      setIniciando(false)
+    }
+  }
+
   useEffect(() => {
-    api.get<Campanha | { campanha: Campanha }>(`/campanhas/${id}`)
+    api.get<{ campanha: Campanha }>(`/campanhas/${id}`)
       .then((data) => {
-        const c = (data as any).campanha ?? (data as Campanha)
+        const c = data.campanha
         setCampanha(c)
         setEditNome(c.nome ?? '')
-        setEditMensagem(c.mensagem_base ?? '')
+        setEditMensagem(c.mensagemBase ?? '')
       })
       .catch(() => {
         toast.error('Erro ao carregar campanha.')
@@ -60,10 +76,10 @@ export default function CampanhaDetalhesPage() {
     try {
       await api.patch(`/campanhas/${id}`, {
         nome: editNome,
-        mensagem_base: editMensagem,
+        mensagemBase: editMensagem,
       })
       toast.success('Campanha atualizada!')
-      setCampanha((prev) => prev ? { ...prev, nome: editNome, mensagem_base: editMensagem } : prev)
+      setCampanha((prev) => prev ? { ...prev, nome: editNome, mensagemBase: editMensagem } : prev)
     } catch (err) {
       toast.error('Erro ao salvar.')
     } finally {
@@ -107,17 +123,12 @@ export default function CampanhaDetalhesPage() {
             ) : (
               <Badge variant="secondary">Pausada</Badge>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleToggle}
-              className="gap-2"
-            >
-              {campanha.ativo ? (
-                <><Pause className="h-4 w-4" /> Pausar</>
-              ) : (
-                <><Play className="h-4 w-4 text-green-500" /> Ativar</>
-              )}
+            <Button variant="outline" size="sm" onClick={handleToggle} className="gap-2">
+              {campanha.ativo ? <><Pause className="h-4 w-4" /> Pausar</> : <><Play className="h-4 w-4 text-green-500" /> Ativar</>}
+            </Button>
+            <Button size="sm" onClick={handleIniciar} disabled={iniciando} className="gap-2">
+              {iniciando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {iniciando ? 'Carregando…' : 'Carregar Contatos'}
             </Button>
           </div>
         </div>
@@ -130,14 +141,14 @@ export default function CampanhaDetalhesPage() {
             <p className="text-xs text-muted-foreground uppercase font-semibold tracking-widest">Lista</p>
             <p className="text-sm font-semibold mt-1 truncate flex items-center gap-1">
               <List className="h-4 w-4 text-primary" />
-              {campanha.lista_nome ?? 'N/A'}
+              {campanha.lista?.nome ?? 'N/A'}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground uppercase font-semibold tracking-widest">Limite/dia</p>
-            <p className="text-2xl font-bold mt-1">{campanha.limite_envios_dia ?? 30}</p>
+            <p className="text-2xl font-bold mt-1">{campanha.limiteEnviosDia ?? 30}</p>
           </CardContent>
         </Card>
         <Card>
