@@ -10,6 +10,10 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'LeadMap Pro',
   description: 'Prospecção inteligente e CRM com WhatsApp',
+  icons: {
+    icon: '/favicon_leadmap.png',
+    apple: '/favicon_leadmap.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
