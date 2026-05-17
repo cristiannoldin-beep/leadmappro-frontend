@@ -83,7 +83,7 @@ function LoginForm() {
         const result = await signIn(email, password)
         if (result?.error) setError(result.error)
       } else {
-        const result = await signUp(email, password, nomeCompleto, celular, addr as Record<string, string>)
+        const result = await signUp(email, password, nomeCompleto, celular, addr as unknown as Record<string, string>)
         if (result?.error) setError(result.error)
       }
     } finally {
