@@ -33,11 +33,11 @@ import {
 interface WhatsappConexao {
   id: string
   apelido?: string
-  numero_telefone?: string
+  numeroTelefone?: string
+  instanceName?: string
   provider: 'uazapi' | 'meta_official'
   status: string
   createdAt?: string
-  created_at?: string
 }
 
 function isConnected(status: string) {
@@ -71,7 +71,7 @@ export default function ConexoesWhatsAppPage() {
 
         if (instanceNameAtivo) {
           const conectada = list.find(
-            (c: WhatsappConexao) => isConnected(c.status) && (c.apelido === instanceNameAtivo)
+            (c: WhatsappConexao) => isConnected(c.status) && (c.instanceName === instanceNameAtivo || c.apelido === instanceNameAtivo)
           )
           if (conectada) {
             if (pollingRef.current) clearInterval(pollingRef.current)
@@ -102,18 +102,19 @@ export default function ConexoesWhatsAppPage() {
     setGeneratingQR(true)
     setQrCodeBase64(null)
     try {
-      const data = await api.post<{ qrCode?: string; alreadyConnected?: boolean; success?: boolean }>('/whatsapp/conexoes', {
+      const data = await api.post<{ qrCode?: string; alreadyConnected?: boolean }>('/whatsapp/conexoes', {
         instanceName: instanceName.trim(),
         provider: 'uazapi',
+        apelido: instanceName.trim(),
       })
-      if ((data as any).alreadyConnected) {
+      if (data.alreadyConnected) {
         toast.success('Instância já conectada!')
         setDialogOpen(false)
         fetchConexoes()
         return
       }
-      if ((data as any).qrCode) {
-        setQrCodeBase64((data as any).qrCode)
+      if (data.qrCode) {
+        setQrCodeBase64(data.qrCode)
         toast.success('QR Code gerado! Escaneie com seu WhatsApp.')
         const nome = instanceName.trim()
         pollingRef.current = setInterval(() => fetchConexoes(nome), 4000)
@@ -185,7 +186,7 @@ export default function ConexoesWhatsAppPage() {
           {conexoes.map((con) => {
             const connected = isConnected(con.status)
             const pending = isPending(con.status)
-            const createdAt = con.created_at ?? con.createdAt
+            const createdAt = con.createdAt
             return (
               <Card key={con.id} className={`relative overflow-hidden group transition-all hover:shadow-xl border ${
                 connected ? 'border-green-200 dark:border-green-900/50' :
@@ -226,7 +227,7 @@ export default function ConexoesWhatsAppPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="font-mono text-sm truncate">
-                      {con.numero_telefone ?? <span className="text-muted-foreground italic">Aguardando...</span>}
+                      {con.numeroTelefone ?? <span className="text-muted-foreground italic">Aguardando...</span>}
                     </span>
                   </div>
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${
