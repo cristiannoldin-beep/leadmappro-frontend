@@ -10,12 +10,14 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
   ArrowLeft, FileSpreadsheet, Search, Phone, Globe,
-  Users, MapPin, Loader2, ChevronDown,
+  Users, MapPin, Loader2, Sparkles, Play, RefreshCw,
+  CheckCircle2, MessageCircle,
 } from 'lucide-react'
 
 interface Lista {
@@ -25,7 +27,8 @@ interface Lista {
   segmento?: string
   cidade?: string
   estado?: string
-  googleNextPageToken?: string | null
+  googleVariacoesIa?: string[]
+  googleQueriesUsadas?: string[]
 }
 
 interface Contato {
@@ -39,9 +42,10 @@ interface Contato {
   estado?: string
 }
 
-function WhatsappBadge({ status }: { status: string | undefined }) {
+function WhatsappBadge({ status }: { status?: string }) {
   if (status === 'valido') return <Badge className="bg-green-500/10 text-green-500 border-none text-xs">Válido</Badge>
   if (status === 'invalido') return <Badge variant="destructive" className="text-xs">Inválido</Badge>
+  if (status === 'telefone_invalido') return <Badge variant="outline" className="text-xs text-orange-500">Tel. Inválido</Badge>
   return <Badge variant="secondary" className="text-xs">Não validado</Badge>
 }
 
@@ -55,96 +59,173 @@ export default function ListaResultadosPage() {
   const [loadingContatos, setLoadingContatos] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Prospecção
-  const [buscarQuery, setBuscarQuery] = useState('')
+  // Estados de prospecção
+  const [variacoes, setVariacoes] = useState<string[]>([])
+  const [gerando, setGerando] = useState(false)
   const [buscando, setBuscando] = useState(false)
-  const [nextPageToken, setNextPageToken] = useState<string | null>(null)
+  const [buscaProgress, setBuscaProgress] = useState(0)
+  const [buscaStatus, setBuscaStatus] = useState('')
+  const [validando, setValidando] = useState(false)
+  const [queryManual, setQueryManual] = useState('')
 
   const fetchContatos = useCallback(() => {
     setLoadingContatos(true)
-    api.get<{ contatos: Contato[] }>(`/listas/${id}/contatos?page=1&limit=200`)
-      .then((data) => setContatos((data as any).contatos ?? []))
+    api.get<{ contatos: Contato[]; total: number }>(`/listas/${id}/contatos?page=1&limit=200`)
+      .then((data) => setContatos(data.contatos ?? []))
       .catch(() => setContatos([]))
       .finally(() => setLoadingContatos(false))
   }, [id])
 
-  useEffect(() => {
+  const fetchLista = useCallback(() => {
     api.get<{ lista: Lista }>(`/listas/${id}`)
       .then((data) => {
         const l = data.lista
         setLista(l)
-        setBuscarQuery(l.segmento ?? '')
-        setNextPageToken(l.googleNextPageToken ?? null)
+        setVariacoes(l.googleVariacoesIa ?? [])
+        setQueryManual(l.segmento ?? '')
       })
       .catch(() => toast.error('Erro ao carregar lista'))
       .finally(() => setLoadingLista(false))
   }, [id])
 
+  useEffect(() => { fetchLista() }, [fetchLista])
   useEffect(() => { fetchContatos() }, [fetchContatos])
 
-  const handleBuscar = async (pageToken?: string) => {
-    if (!buscarQuery.trim()) { toast.error('Informe o que buscar.'); return }
-    setBuscando(true)
+  // Gerar variações com OpenAI
+  const handleGerarVariacoes = async () => {
+    if (!lista?.segmento && !queryManual.trim()) {
+      toast.error('Informe um segmento para gerar variações.')
+      return
+    }
+    setGerando(true)
     try {
-      const result = await api.post<{ inseridos: number; ignorados: number; nextPageToken: string | null }>(
-        '/prospeccao/google-maps',
-        { listaId: id, query: buscarQuery.trim(), ...(pageToken ? { nextPageToken: pageToken } : {}) }
+      const result = await api.post<{ variacoes: string[]; quantidade: number }>(
+        '/prospeccao/gerar-variacoes',
+        { listaId: id, segmento: lista?.segmento || queryManual.trim(), cidade: lista?.cidade, estado: lista?.estado }
       )
-      toast.success(`${result.inseridos} empresas adicionadas à lista!`)
-      setNextPageToken(result.nextPageToken)
-      fetchContatos()
+      setVariacoes(result.variacoes)
+      toast.success(`${result.quantidade} variações geradas!`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro na busca.'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Erro ao gerar variações.')
+    } finally {
+      setGerando(false)
+    }
+  }
+
+  // Buscar no Google Maps (percorre todas as variações)
+  const handleBuscar = async () => {
+    if (variacoes.length === 0 && !queryManual.trim()) {
+      toast.error('Gere as variações primeiro ou informe uma query manual.')
+      return
+    }
+    setBuscando(true)
+    setBuscaProgress(0)
+
+    const total = variacoes.length || 1
+    let acumulado = 0
+
+    try {
+      // Se há variações salvas, executa uma por vez (cada call usa a próxima não usada)
+      const rounds = variacoes.length > 0 ? variacoes.length : 1
+
+      for (let i = 0; i < rounds; i++) {
+        setBuscaStatus(`Buscando variação ${i + 1} de ${rounds}…`)
+        const result = await api.post<{
+          inseridos: number; duplicados: number; queryUtilizada: string;
+          todasQueriesUsadas: boolean; queriesRestantes: number
+        }>(
+          '/prospeccao/google-maps',
+          { listaId: id, ...(variacoes.length === 0 ? { query: queryManual.trim() } : {}) }
+        )
+        acumulado += result.inseridos
+        setBuscaProgress(Math.round(((i + 1) / total) * 100))
+        if (result.todasQueriesUsadas) break
+        if (i < rounds - 1) await new Promise(r => setTimeout(r, 500))
+      }
+
+      toast.success(`${acumulado} empresas adicionadas à lista!`)
+      fetchContatos()
+      fetchLista()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro na busca.')
     } finally {
       setBuscando(false)
+      setBuscaProgress(100)
+      setBuscaStatus('')
+    }
+  }
+
+  // Validar WhatsApp
+  const handleValidarWhatsApp = async () => {
+    const naoValidados = contatos.filter(c => !c.status_whatsapp || c.status_whatsapp === 'nao_validado').length
+    if (naoValidados === 0) { toast.info('Todos os contatos já foram validados.'); return }
+    setValidando(true)
+    try {
+      let remaining = naoValidados
+      let totalValidos = 0
+      while (remaining > 0) {
+        const result = await api.post<{ validos: number; hasMore: boolean; remaining: number }>(
+          '/prospeccao/validar-whatsapp',
+          { listaId: id, limit: 20 }
+        )
+        totalValidos += result.validos
+        remaining = result.remaining
+        fetchContatos()
+        if (!result.hasMore) break
+        await new Promise(r => setTimeout(r, 1000))
+      }
+      toast.success(`Validação concluída! ${totalValidos} WhatsApps válidos encontrados.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro na validação.')
+    } finally {
+      setValidando(false)
     }
   }
 
   const handleExportCSV = () => {
     if (contatos.length === 0) { toast.error('Nenhum contato para exportar.'); return }
     const headers = ['Empresa', 'Telefone', 'WhatsApp', 'Cidade', 'Estado', 'Website']
-    const rows = contatos.map((c) => [
-      c.nome_empresa ?? '', c.telefone ?? '', c.status_whatsapp ?? '',
-      c.cidade ?? '', c.estado ?? '', c.website ?? '',
-    ])
-    const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
+    const rows = contatos.map(c => [c.nome_empresa ?? '', c.telefone ?? '', c.status_whatsapp ?? '', c.cidade ?? '', c.estado ?? '', c.website ?? ''])
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url
     a.download = `${lista?.nome ?? 'lista'}-contatos.csv`; a.click()
     URL.revokeObjectURL(url)
-    toast.success('Exportação concluída!')
+    toast.success('CSV exportado!')
   }
 
-  const filtered = contatos.filter((c) =>
+  const filtered = contatos.filter(c =>
     c.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.telefone?.includes(searchTerm)
   )
 
+  const isGoogleMaps = lista?.origem === 'google_maps'
+  const queriesUsadas = lista?.googleQueriesUsadas?.length ?? 0
+  const validosCount = contatos.filter(c => c.status_whatsapp === 'valido').length
+  const naoValidadosCount = contatos.filter(c => !c.status_whatsapp || c.status_whatsapp === 'nao_validado').length
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
+
       {/* Header */}
-      <div className="mb-2">
+      <div>
         <Link href="/listas" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-4 transition-colors text-sm">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar para Listas
         </Link>
-        {loadingLista ? (
-          <Skeleton className="h-10 w-64 mb-2" />
-        ) : (
-          <h1 className="text-4xl font-bold">{lista?.nome ?? 'Resultados da Lista'}</h1>
+        {loadingLista ? <Skeleton className="h-10 w-64 mb-2" /> : (
+          <h1 className="text-4xl font-bold">{lista?.nome ?? 'Lista'}</h1>
         )}
         {lista && (
-          <div className="flex flex-wrap items-center gap-3 mt-2">
-            <p className="text-muted-foreground text-sm">
-              Origem: {lista.origem.replace(/_/g, ' ')}
-            </p>
+          <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
+            <span>Origem: {lista.origem.replace(/_/g, ' ')}</span>
             {(lista.cidade || lista.estado) && (
-              <div className="flex items-center gap-1 text-muted-foreground text-sm">
+              <span className="flex items-center gap-1">
                 <MapPin className="h-3.5 w-3.5" />
-                <span>{[lista.cidade, lista.estado].filter(Boolean).join('/')}</span>
-              </div>
+                {[lista.cidade, lista.estado].filter(Boolean).join('/')}
+              </span>
             )}
+            {lista.segmento && <span className="italic">{lista.segmento}</span>}
           </div>
         )}
 
@@ -156,69 +237,91 @@ export default function ListaResultadosPage() {
             <span className="text-sm text-muted-foreground">Contatos</span>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border">
-            <span className="text-xl font-bold text-green-500">
-              {contatos.filter((c) => c.status_whatsapp === 'valido').length}
-            </span>
+            <MessageCircle className="h-4 w-4 text-green-500" />
+            <span className="text-xl font-bold text-green-500">{validosCount}</span>
             <span className="text-sm text-muted-foreground">WhatsApp Válidos</span>
           </div>
+          {isGoogleMaps && queriesUsadas > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border">
+              <CheckCircle2 className="h-4 w-4 text-blue-500" />
+              <span className="text-xl font-bold text-blue-500">{queriesUsadas}</span>
+              <span className="text-sm text-muted-foreground">Buscas feitas</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Busca Google Maps ── */}
-      {lista?.origem === 'google_maps' && (
-        <div className="rounded-xl border bg-card p-5 space-y-3">
-          <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Buscar Empresas no Google Maps</p>
-          <div className="flex gap-2">
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="query" className="text-xs text-muted-foreground">O que buscar</Label>
+      {/* ── Painel de Prospecção Google Maps ── */}
+      {isGoogleMaps && (
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Prospecção Google Maps</p>
+
+          {/* Etapa 1 — Gerar Variações */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-muted-foreground">Etapa 1 — Gerar variações de busca com IA</Label>
+            <div className="flex gap-2">
               <Input
-                id="query"
-                placeholder='Ex: funerárias, clínicas médicas, confecções...'
-                value={buscarQuery}
-                onChange={(e) => setBuscarQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !buscando && handleBuscar()}
-                disabled={buscando}
+                placeholder="Segmento (ex: funerárias, clínicas médicas...)"
+                value={queryManual}
+                onChange={e => setQueryManual(e.target.value)}
+                disabled={gerando}
+                className="flex-1"
               />
-            </div>
-            <div className="flex items-end">
-              <Button onClick={() => handleBuscar()} disabled={buscando} className="h-10 gap-2">
-                {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                {buscando ? 'Buscando...' : 'Buscar'}
+              <Button onClick={handleGerarVariacoes} disabled={gerando} variant="outline" className="gap-2 shrink-0">
+                {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {gerando ? 'Gerando…' : variacoes.length > 0 ? 'Regerar' : 'Gerar Variações'}
               </Button>
             </div>
+
+            {/* Chips das variações */}
+            {variacoes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {variacoes.map((v, i) => {
+                  const usada = lista?.googleQueriesUsadas?.some(q => q.includes(v.split(' em ')[0]))
+                  return (
+                    <span key={i} className={`text-xs px-2.5 py-1 rounded-full border ${usada ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-muted text-muted-foreground'}`}>
+                      {usada && '✓ '}{v}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
           </div>
-          {lista.cidade && (
-            <p className="text-xs text-muted-foreground">
-              A busca será filtrada para: <strong>{[lista.cidade, lista.estado].filter(Boolean).join(', ')}</strong>
-            </p>
-          )}
-          {nextPageToken && (
-            <Button variant="outline" size="sm" onClick={() => handleBuscar(nextPageToken)} disabled={buscando} className="gap-2">
-              <ChevronDown className="h-4 w-4" />
-              Carregar mais resultados
-            </Button>
-          )}
+
+          {/* Etapa 2 — Buscar */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-muted-foreground">Etapa 2 — Buscar no Google Maps</Label>
+            <div className="flex gap-2">
+              <Button onClick={handleBuscar} disabled={buscando || (variacoes.length === 0 && !queryManual.trim())} className="gap-2">
+                {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {buscando ? buscaStatus || 'Buscando…' : variacoes.length > 0 ? `Buscar (${variacoes.length} variações)` : 'Buscar'}
+              </Button>
+              {contatos.length > 0 && (
+                <Button onClick={handleValidarWhatsApp} disabled={validando || naoValidadosCount === 0} variant="outline" className="gap-2">
+                  {validando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {validando ? 'Validando…' : `Validar WhatsApp (${naoValidadosCount})`}
+                </Button>
+              )}
+            </div>
+            {buscando && (
+              <Progress value={buscaProgress} className="h-1.5" />
+            )}
+          </div>
         </div>
       )}
 
-      {/* Filter + Export */}
+      {/* Filtro + Export */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por empresa ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+          <Input placeholder="Buscar por empresa ou telefone…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
         </div>
-        <Button variant="outline" onClick={handleExportCSV}>
-          <FileSpreadsheet className="mr-2 h-4 w-4" />
-          Exportar CSV
+        <Button variant="outline" onClick={handleExportCSV} disabled={contatos.length === 0}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Exportar CSV
         </Button>
       </div>
 
-      {/* Table */}
+      {/* Tabela */}
       <div className="rounded-lg border bg-card overflow-hidden">
         <Table>
           <TableHeader>
@@ -233,38 +336,27 @@ export default function ListaResultadosPage() {
           <TableBody>
             {loadingContatos ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
-                    <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
-                  ))}
-                </TableRow>
+                <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>
               ))
             ) : filtered.length > 0 ? (
-              filtered.map((contato) => (
-                <TableRow key={contato.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="font-medium">{contato.nome_empresa}</TableCell>
+              filtered.map(c => (
+                <TableRow key={c.id} className="hover:bg-muted/30">
+                  <TableCell className="font-medium">{c.nome_empresa}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <Phone className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm">{contato.telefone ?? '-'}</span>
+                      <span className="text-sm">{c.telefone ?? '-'}</span>
                     </div>
                   </TableCell>
-                  <TableCell><WhatsappBadge status={contato.status_whatsapp} /></TableCell>
+                  <TableCell><WhatsappBadge status={c.status_whatsapp} /></TableCell>
+                  <TableCell><Badge variant="outline" className="text-xs">{c.status ?? 'novo'}</Badge></TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs">{contato.status ?? 'novo'}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {contato.website ? (
-                      <a href={contato.website} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-primary hover:underline text-sm">
+                    {c.website ? (
+                      <a href={c.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline text-sm">
                         <Globe className="h-3 w-3" />
-                        <span className="max-w-[150px] truncate">
-                          {contato.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                        </span>
+                        <span className="max-w-[150px] truncate">{c.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
                       </a>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
+                    ) : <span className="text-muted-foreground text-sm">-</span>}
                   </TableCell>
                 </TableRow>
               ))
@@ -273,8 +365,8 @@ export default function ListaResultadosPage() {
                 <TableCell colSpan={5} className="text-center py-12">
                   <div className="space-y-2">
                     <Search className="h-8 w-8 text-muted-foreground mx-auto" />
-                    <p className="text-muted-foreground">
-                      {searchTerm ? 'Nenhum contato encontrado para esse filtro.' : 'Nenhum contato ainda. Use a busca acima para encontrar empresas.'}
+                    <p className="text-muted-foreground text-sm">
+                      {searchTerm ? 'Nenhum resultado para esse filtro.' : 'Nenhum contato ainda. Use o painel de prospecção acima.'}
                     </p>
                   </div>
                 </TableCell>
