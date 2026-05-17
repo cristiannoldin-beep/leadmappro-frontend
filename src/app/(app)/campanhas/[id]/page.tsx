@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save, Loader2, Play, Pause, List, Zap } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Play, Pause, List, Zap, Send } from 'lucide-react'
 
 interface Campanha {
   id: string
@@ -38,9 +38,24 @@ export default function CampanhaDetalhesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [iniciando, setIniciando] = useState(false)
+  const [disparando, setDisparando] = useState(false)
 
   const [editNome, setEditNome] = useState('')
   const [editMensagem, setEditMensagem] = useState('')
+
+  const handleDisparar = async () => {
+    setDisparando(true)
+    try {
+      const result = await api.post<{ enviados: number; erros: number; ignorados: number }>(`/campanhas/${id}/disparar`, {})
+      toast.success(`Disparo concluído! ${result.enviados} enviados, ${result.erros} erros.`)
+      const refreshed = await api.get<{ campanha: Campanha }>(`/campanhas/${id}`)
+      setCampanha(refreshed.campanha)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro no disparo.')
+    } finally {
+      setDisparando(false)
+    }
+  }
 
   const handleIniciar = async () => {
     setIniciando(true)
@@ -126,9 +141,13 @@ export default function CampanhaDetalhesPage() {
             <Button variant="outline" size="sm" onClick={handleToggle} className="gap-2">
               {campanha.ativo ? <><Pause className="h-4 w-4" /> Pausar</> : <><Play className="h-4 w-4 text-green-500" /> Ativar</>}
             </Button>
-            <Button size="sm" onClick={handleIniciar} disabled={iniciando} className="gap-2">
+            <Button size="sm" onClick={handleIniciar} disabled={iniciando} variant="outline" className="gap-2">
               {iniciando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
               {iniciando ? 'Carregando…' : 'Carregar Contatos'}
+            </Button>
+            <Button size="sm" onClick={handleDisparar} disabled={disparando || !campanha?.ativo} className="gap-2 bg-green-600 hover:bg-green-700">
+              {disparando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {disparando ? 'Disparando…' : 'Disparar Agora'}
             </Button>
           </div>
         </div>
