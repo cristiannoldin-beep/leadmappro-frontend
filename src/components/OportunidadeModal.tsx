@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
@@ -12,36 +11,29 @@ import { toast } from 'sonner'
 interface OportunidadeModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  opportunity?: { contato_id?: string | null }
+  contatoId: string
   onSuccess?: () => void
 }
 
-export function OportunidadeModal({ open, onOpenChange, opportunity, onSuccess }: OportunidadeModalProps) {
-  const [titulo, setTitulo] = useState('')
+export function OportunidadeModal({ open, onOpenChange, contatoId, onSuccess }: OportunidadeModalProps) {
   const [etapa, setEtapa] = useState('novo')
   const [valor, setValor] = useState('')
-  const [observacoes, setObservacoes] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!titulo.trim()) return
-
     setLoading(true)
     try {
-      await api.post('/oportunidades', {
-        titulo: titulo.trim(),
+      await api.post('/crm/oportunidades', {
+        contatoId,
         etapa,
-        valor_estimado: valor ? parseFloat(valor.replace(',', '.')) : null,
-        observacoes: observacoes.trim() || null,
-        contato_id: opportunity?.contato_id ?? null,
+        valorEstimado: valor ? parseFloat(valor.replace(',', '.')) : undefined,
       })
       toast.success('Oportunidade criada!')
-      setTitulo('')
       setEtapa('novo')
       setValor('')
-      setObservacoes('')
       onSuccess?.()
+      onOpenChange(false)
     } catch {
       toast.error('Erro ao criar oportunidade')
     } finally {
@@ -57,14 +49,6 @@ export function OportunidadeModal({ open, onOpenChange, opportunity, onSuccess }
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div>
-            <Input
-              placeholder="Título da oportunidade"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              required
-            />
-          </div>
-          <div>
             <Select value={etapa} onValueChange={setEtapa}>
               <SelectTrigger>
                 <SelectValue placeholder="Etapa" />
@@ -72,9 +56,9 @@ export function OportunidadeModal({ open, onOpenChange, opportunity, onSuccess }
               <SelectContent>
                 <SelectItem value="novo">Novo</SelectItem>
                 <SelectItem value="contato_feito">Contato Feito</SelectItem>
-                <SelectItem value="proposta">Proposta</SelectItem>
+                <SelectItem value="proposta">Interessados</SelectItem>
                 <SelectItem value="negociacao">Negociação</SelectItem>
-                <SelectItem value="ganho">Ganho</SelectItem>
+                <SelectItem value="fechado">Fechado</SelectItem>
                 <SelectItem value="perdido">Perdido</SelectItem>
               </SelectContent>
             </Select>
@@ -86,14 +70,6 @@ export function OportunidadeModal({ open, onOpenChange, opportunity, onSuccess }
               onChange={(e) => setValor(e.target.value)}
               type="text"
               inputMode="decimal"
-            />
-          </div>
-          <div>
-            <Textarea
-              placeholder="Observações (opcional)"
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              rows={3}
             />
           </div>
           <div className="flex justify-end gap-2">
