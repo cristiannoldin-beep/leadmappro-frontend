@@ -125,6 +125,21 @@ export default function ConfiguracoesPage() {
         </CardContent>
       </Card>
 
+      {/* IA link */}
+      <Card className="border-2 border-purple-500/20 bg-purple-500/5">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl font-bold">Estilo de IA</CardTitle>
+          <CardDescription>Configure o tom e estilo das mensagens geradas pela IA.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="font-bold uppercase text-xs tracking-widest rounded-xl border-purple-500/30">
+            <Link href="/configuracoes/ia">
+              Configurar IA →
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Credentials */}
       {loading ? (
         <div className="space-y-4">
