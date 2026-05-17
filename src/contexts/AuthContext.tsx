@@ -19,7 +19,7 @@ interface AuthContextType {
   accountId: string | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, nomeCompleto: string, celular?: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, nomeCompleto: string, celular?: string, address?: Record<string, string>) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -61,10 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, nomeCompleto: string, celular?: string) => {
+  const signUp = async (email: string, password: string, nomeCompleto: string, celular?: string, address?: Record<string, string>) => {
     try {
       const data = await api.post<{ user: User; token: string }>('/auth/register', {
-        email, password, nomeCompleto, celular,
+        email, password, nomeCompleto, celular, ...address,
       })
       setUser(data.user)
       toast.success('Conta criada com sucesso!')
