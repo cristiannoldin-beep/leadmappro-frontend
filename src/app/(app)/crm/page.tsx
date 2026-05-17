@@ -44,11 +44,11 @@ import {
 interface Oportunidade {
   id: string
   etapa: string
-  valor_estimado?: number | null
-  data_criacao?: string
+  valorEstimado?: number | null
+  dataCriacao?: string
   contato?: {
     id?: string
-    nome_empresa?: string
+    nomeEmpresa?: string
     cidade?: string
     telefone?: string
   }
@@ -123,7 +123,7 @@ export default function CRMKanbanPage() {
   }
 
   const totalOportunidades = oportunidades.length
-  const valorTotal = oportunidades.reduce((acc, o) => acc + (o.valor_estimado ?? 0), 0)
+  const valorTotal = oportunidades.reduce((acc, o) => acc + (o.valorEstimado ?? 0), 0)
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
@@ -234,7 +234,7 @@ export default function CRMKanbanPage() {
                                       <div className="flex items-start justify-between">
                                         <div className="space-y-1 max-w-[80%]">
                                           <h3 className="font-medium text-sm leading-normal line-clamp-2 mb-1">
-                                            {opp.contato?.nome_empresa ?? 'Sem Nome'}
+                                            {opp.contato?.nomeEmpresa ?? 'Sem Nome'}
                                           </h3>
                                           {opp.contato?.cidade && (
                                             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -273,9 +273,9 @@ export default function CRMKanbanPage() {
                                       </div>
 
                                       <div className="flex flex-wrap gap-1.5">
-                                        {opp.valor_estimado ? (
+                                        {opp.valorEstimado ? (
                                           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-none font-medium text-[10px]">
-                                            {formatCurrency(opp.valor_estimado)}
+                                            {formatCurrency(opp.valorEstimado)}
                                           </Badge>
                                         ) : (
                                           <Badge variant="outline" className="bg-muted text-muted-foreground border-none text-[10px]">
@@ -287,7 +287,7 @@ export default function CRMKanbanPage() {
                                       <div className="pt-2 border-t border-border flex items-center justify-between">
                                         <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                           <Calendar className="h-3 w-3" />
-                                          {opp.data_criacao ? new Date(opp.data_criacao).toLocaleDateString('pt-BR') : '—'}
+                                          {opp.dataCriacao ? new Date(opp.dataCriacao).toLocaleDateString('pt-BR') : '—'}
                                         </div>
                                         {opp.etapa === 'fechado' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
                                         {opp.etapa === 'perdido' && <AlertCircle className="h-4 w-4 text-red-500" />}
