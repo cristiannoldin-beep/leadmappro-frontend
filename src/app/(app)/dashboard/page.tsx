@@ -17,6 +17,8 @@ import {
   ArrowRight,
   Sparkles,
   LayoutDashboard,
+  MessageCircle,
+  Send,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -24,13 +26,16 @@ interface DashboardStats {
   campanhas: number
   oportunidades: number
   contatos: number
+  whatsappValidos: number
+  mensagensEnviadas: number
+  conexoesAtivas: number
 }
 
 interface Campanha {
   id: string
   nome: string
   ativo: boolean
-  lista_nome?: string
+  lista?: { nome: string }
 }
 
 export default function DashboardPage() {
@@ -43,7 +48,7 @@ export default function DashboardPage() {
   useEffect(() => {
     api.get<DashboardStats>('/dashboard/stats')
       .then(setStats)
-      .catch(() => setStats({ listas: 0, campanhas: 0, oportunidades: 0, contatos: 0 }))
+      .catch(() => setStats({ listas: 0, campanhas: 0, oportunidades: 0, contatos: 0, whatsappValidos: 0, mensagensEnviadas: 0, conexoesAtivas: 0 }))
       .finally(() => setLoadingStats(false))
   }, [])
 
@@ -56,36 +61,36 @@ export default function DashboardPage() {
 
   const statsCards = [
     {
-      title: 'Listas Criadas',
-      value: stats?.listas ?? 0,
-      icon: ListChecks,
-      iconBg: 'bg-emerald-500/10',
-      iconColor: 'text-emerald-400',
-      href: '/listas',
-    },
-    {
-      title: 'Campanhas Ativas',
-      value: stats?.campanhas ?? 0,
-      icon: Target,
-      iconBg: 'bg-purple-500/10',
-      iconColor: 'text-purple-400',
-      href: '/campanhas',
-    },
-    {
-      title: 'Oportunidades Abertas',
-      value: stats?.oportunidades ?? 0,
-      icon: TrendingUp,
-      iconBg: 'bg-blue-500/10',
-      iconColor: 'text-blue-400',
-      href: '/crm',
-    },
-    {
       title: 'Total de Contatos',
       value: stats?.contatos ?? 0,
       icon: Users,
       iconBg: 'bg-orange-500/10',
       iconColor: 'text-orange-400',
       href: '/listas',
+    },
+    {
+      title: 'WhatsApp Válidos',
+      value: stats?.whatsappValidos ?? 0,
+      icon: MessageCircle,
+      iconBg: 'bg-green-500/10',
+      iconColor: 'text-green-400',
+      href: '/listas',
+    },
+    {
+      title: 'Mensagens Enviadas',
+      value: stats?.mensagensEnviadas ?? 0,
+      icon: Send,
+      iconBg: 'bg-purple-500/10',
+      iconColor: 'text-purple-400',
+      href: '/campanhas',
+    },
+    {
+      title: 'Campanhas Ativas',
+      value: stats?.campanhas ?? 0,
+      icon: Target,
+      iconBg: 'bg-blue-500/10',
+      iconColor: 'text-blue-400',
+      href: '/campanhas',
     },
   ]
 
@@ -210,9 +215,9 @@ export default function DashboardPage() {
                       <p className="font-semibold text-sm group-hover:text-emerald-400 transition-colors truncate">
                         {campanha.nome}
                       </p>
-                      {campanha.lista_nome && (
+                      {campanha.lista?.nome && (
                         <p className="text-[11px] text-muted-foreground font-medium mt-0.5 truncate">
-                          {campanha.lista_nome}
+                          {campanha.lista.nome}
                         </p>
                       )}
                     </div>
