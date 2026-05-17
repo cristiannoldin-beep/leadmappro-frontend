@@ -65,9 +65,9 @@ export default function LandingPage() {
     if (user) {
       const adminEmails = ['cristiannoldin@gmail.com', 'cazagrande.neto@gmail.com']
       const isAdmin = user.email && adminEmails.some((e) => user.email.toLowerCase().trim() === e.toLowerCase().trim())
-      router.push(isAdmin ? '/admin' : '/dashboard')
+      window.location.href = `https://app.leadmappro.com.br${isAdmin ? '/admin' : '/dashboard'}`
     }
-  }, [user, router])
+  }, [user])
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20)
@@ -110,10 +110,10 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/login">
+            <Link href="https://app.leadmappro.com.br/login">
               <Button variant="ghost" className="text-[#9a9a9a] hover:text-white hover:bg-white/[0.04] text-sm hidden md:inline-flex">Entrar</Button>
             </Link>
-            <Link href="/login?tab=register">
+            <Link href="https://app.leadmappro.com.br/login?tab=register">
               <Button className="bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-5 h-9 text-sm rounded-lg hover:shadow-lg hover:shadow-emerald-500/25 transition-all">
                 Começar grátis
               </Button>
@@ -146,7 +146,7 @@ export default function LandingPage() {
               <strong className="text-white">Você só precisa aparecer para assinar o contrato.</strong>
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/login?tab=register">
+              <Link href="https://app.leadmappro.com.br/login?tab=register">
                 <Button size="lg" className="h-12 px-8 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-base rounded-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all group">
                   Começar gratuitamente
                   <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
@@ -507,7 +507,7 @@ export default function LandingPage() {
             <h2 className="text-4xl md:text-5xl font-black text-white leading-tight">Ative seu SDR com IA <span className="text-emerald-400">hoje mesmo</span></h2>
             <p className="text-[#9a9a9a] max-w-xl mx-auto text-lg">Em menos de 5 minutos você tem leads do Google Maps sendo abordados com mensagens personalizadas por IA. Sem cartão de crédito. Sem config técnica.</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <Link href="/login?tab=register">
+              <Link href="https://app.leadmappro.com.br/login?tab=register">
                 <Button size="lg" className="h-14 px-10 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-lg rounded-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all">
                   Começar agora — é grátis <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>

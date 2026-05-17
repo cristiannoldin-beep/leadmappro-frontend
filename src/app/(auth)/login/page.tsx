@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useSearchParams } from 'next/navigation'
 import {
   Loader2, Mail, Lock, User, Smartphone,
   MapPin, Hash, Home, Building2, Map,
@@ -28,9 +29,12 @@ const FEATURES = [
   { icon: Zap, text: 'SDR com inteligência artificial 24h' },
 ]
 
-export default function LoginPage() {
+function LoginForm() {
   const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const searchParams = useSearchParams()
+  const [mode, setMode] = useState<'login' | 'register'>(
+    searchParams.get('tab') === 'register' ? 'register' : 'login'
+  )
 
   // Dados pessoais
   const [nomeCompleto, setNomeCompleto] = useState('')
@@ -326,5 +330,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
