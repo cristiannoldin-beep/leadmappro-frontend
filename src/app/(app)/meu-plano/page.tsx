@@ -11,56 +11,55 @@ import { PricingSection } from '@/components/PricingSection'
 import {
   ShieldCheck,
   CreditCard,
-  Clock,
   Zap,
-  Check,
-  Star,
-  Rocket,
   Crown,
   ArrowRight,
+  RefreshCw,
 } from 'lucide-react'
 
-interface Plano {
-  id?: string
-  plan_type?: string
-  subscription_status?: string
-  next_billing_at?: string
-  nome?: string
-  status?: string
-}
-
-function getPlanIcon(type?: string) {
-  const t = type?.toLowerCase() ?? ''
-  if (t.includes('finder')) return <Star className="h-6 w-6 text-blue-500" />
-  if (t.includes('connect')) return <Rocket className="h-6 w-6 text-purple-500" />
-  if (t.includes('pro')) return <Crown className="h-6 w-6 text-amber-500" />
-  return <ShieldCheck className="h-6 w-6 text-primary" />
-}
-
-function getPlanDisplayName(type?: string) {
-  const t = type?.toLowerCase() ?? ''
-  if (t.includes('finder')) return 'Finder'
-  if (t.includes('connect')) return 'Connect'
-  if (t.includes('pro')) return 'Pro'
-  return type ?? 'Finder'
+interface PlanoAtual {
+  id: string
+  name: string
+  price: number
+  limits: Record<string, unknown>
 }
 
 export default function MeuPlanoPage() {
-  const [plano, setPlano] = useState<Plano | null>(null)
+  const [plano, setPlano] = useState<PlanoAtual | null>(null)
+  const [status, setStatus] = useState<string>('active')
   const [loading, setLoading] = useState(true)
+  const [checkingOut, setCheckingOut] = useState(false)
 
   useEffect(() => {
-    api.get<Plano | { plano: Plano }>('/billing/plano')
+    api.get<{ plano: PlanoAtual | null; status: string }>('/billing/plano')
       .then((data) => {
-        const p = (data as any).plano ?? (data as Plano)
-        setPlano(p)
+        setPlano(data.plano)
+        setStatus(data.status)
       })
       .catch(() => setPlano(null))
       .finally(() => setLoading(false))
   }, [])
 
-  const isActive =
-    plano?.subscription_status === 'active' || plano?.status === 'active'
+  const handleCheckout = async (planId: string) => {
+    setCheckingOut(true)
+    try {
+      const data = await api.post<{ checkoutUrl?: string }>('/billing/checkout', {
+        planId,
+        provider: 'stripe',
+        successUrl: `${window.location.origin}/meu-plano?success=true`,
+        cancelUrl: `${window.location.origin}/meu-plano`,
+      })
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+      } else {
+        toast.error('Erro ao criar checkout. Verifique as credenciais do Stripe.')
+      }
+    } catch {
+      toast.error('Erro ao iniciar checkout.')
+    } finally {
+      setCheckingOut(false)
+    }
+  }
 
   return (
     <div className="container mx-auto p-4 md:p-10 space-y-10 min-h-screen">
@@ -78,38 +77,43 @@ export default function MeuPlanoPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-4 bg-card rounded-2xl shadow-lg border border-border">
-                    {getPlanIcon(plano?.plan_type)}
+                    <Crown className="h-6 w-6 text-amber-500" />
                   </div>
                   <div>
                     <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Plano Atual</span>
                     <CardTitle className="text-3xl font-black uppercase leading-none mt-1">
-                      {getPlanDisplayName(plano?.plan_type)}
+                      {plano?.name ?? 'Gratuito'}
                     </CardTitle>
                   </div>
                 </div>
                 <Badge className={`px-4 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest border-none shadow-lg ${
-                  isActive ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white animate-pulse'
+                  status === 'active' ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white animate-pulse'
                 }`}>
-                  {isActive ? 'Assinatura Ativa' : 'Aguardando Pagamento'}
+                  {status === 'active' ? 'Ativa' : 'Aguardando Pagamento'}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-8">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-4">
-                  <div className="p-4 bg-muted/30 rounded-2xl border border-border">
-                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mb-2">Próxima Cobrança</p>
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-card rounded-xl shadow-sm text-blue-600"><Clock className="h-4 w-4" /></div>
-                      <span className="font-black text-foreground">
-                        {plano?.next_billing_at
-                          ? new Date(plano.next_billing_at).toLocaleDateString('pt-BR')
-                          : 'Em breve'}
-                      </span>
+                  {plano ? (
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border">
+                      <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mb-2">Valor Mensal</p>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-card rounded-xl shadow-sm text-blue-600"><CreditCard className="h-4 w-4" /></div>
+                        <span className="font-black text-foreground">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plano.price)}/mês
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border">
+                      <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mb-2">Status</p>
+                      <p className="font-black text-foreground">Sem plano ativo</p>
+                    </div>
+                  )}
                   <div className="p-4 bg-muted/30 rounded-2xl border border-border">
-                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mb-2">Método de Pagamento</p>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mb-2">Pagamento</p>
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-card rounded-xl shadow-sm text-blue-600"><CreditCard className="h-4 w-4" /></div>
                       <span className="font-black text-foreground">PIX / Cartão</span>
@@ -117,7 +121,7 @@ export default function MeuPlanoPage() {
                   </div>
                 </div>
 
-                <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-2xl shadow-blue-600/30 flex flex-col justify-between relative overflow-hidden group">
+                <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-2xl shadow-blue-600/30 flex flex-col justify-between relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-8 opacity-10">
                     <Zap className="h-32 w-32" />
                   </div>
@@ -131,7 +135,7 @@ export default function MeuPlanoPage() {
                     onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
                     className="w-full bg-white text-blue-600 hover:bg-blue-50 font-black uppercase text-[10px] tracking-widest h-12 mt-6 rounded-xl shadow-xl"
                   >
-                    Explorar Upgrades <ArrowRight className="ml-2 h-3 w-3" />
+                    Explorar Planos <ArrowRight className="ml-2 h-3 w-3" />
                   </Button>
                 </div>
               </div>
@@ -151,18 +155,16 @@ export default function MeuPlanoPage() {
               <Badge className="bg-blue-500/20 text-blue-300 border-none mb-2">Dica Pro</Badge>
               <h3 className="text-2xl font-black tracking-tight">Otimize sua Conversão</h3>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Usuários do plano PRO têm 3x mais fechamentos usando as respostas automáticas do SDR.
+                Usuários PRO têm 3x mais fechamentos usando follow-up automático e enriquecimento de leads.
               </p>
             </div>
-            <ul className="space-y-3 relative z-10 my-8">
-              {['Disparos Ilimitados', 'CRM Kanban Ilimitado', 'IA de Auto-Resposta', 'Enriquecimento Profundo'].map((item) => (
-                <li key={item} className="flex items-center gap-2 text-xs font-bold">
-                  <Check className="h-4 w-4 text-blue-400" /> {item}
-                </li>
-              ))}
-            </ul>
-            <Button className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 font-black uppercase tracking-widest rounded-2xl shadow-2xl shadow-blue-900/50">
-              Seja Premium Agora
+            <Button
+              disabled={checkingOut}
+              onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
+              className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 font-black uppercase tracking-widest rounded-2xl shadow-2xl shadow-blue-900/50 mt-8 relative z-10"
+            >
+              {checkingOut ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+              Ver Planos
             </Button>
           </Card>
         </div>
@@ -176,7 +178,7 @@ export default function MeuPlanoPage() {
           </div>
           <h2 className="text-4xl font-black tracking-tight">Escolha sua Próxima Etapa</h2>
         </div>
-        <PricingSection isAnnual={true} />
+        <PricingSection isAnnual={false} />
       </div>
     </div>
   )
