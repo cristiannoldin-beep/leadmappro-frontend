@@ -1,20 +1,48 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import { api } from "@/lib/api";
 
-// â”€â”€â”€ Tipos estritos inferidos do schema do banco â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-type ListaContatoRow = Database["public"]["Tables"]["lista_contato"]["Row"];
-type ContatoRow = Database["public"]["Tables"]["contatos"]["Row"];
+// ── Tipos locais (sem dependência do Supabase) ───────────────────────────────
+export interface ContatoData {
+  id: string;
+  nome_empresa: string;
+  contato_nome?: string | null;
+  telefone: string;
+  cidade?: string | null;
+  estado?: string | null;
+  cnpj?: string | null;
+  website?: string | null;
+  gancho_personalizacao?: string | null;
+  prova_social?: string | null;
+}
 
-// Shape do retorno enriquecido pela RPC (contato + duplicatas)
-export interface ListaContatoEnriquecido extends ListaContatoRow {
-  contatos: ContatoRow;
+export interface ListaContatoEnriquecido {
+  id: string;
+  lista_id: string;
+  contato_id: string;
+  status_whatsapp: string | null;
+  mensagem_enviada: boolean | null;
+  fonte_busca: string | null;
+  created_at: string | null;
+  contatos: ContatoData;
   outras_listas: string[];
 }
 
-// â”€â”€â”€ Tipos dos estados de progresso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export interface Lista {
+  id: string;
+  nome: string;
+  origem: string;
+  segmento?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  googleQueriesUsadas: string[];
+  googleVariacoesIa: string[];
+  createdAt: string;
+  totalContatos: number;
+}
+
+// ── Tipos dos estados de progresso ───────────────────────────────────────────
 export interface ValidationProgress {
   current: number;
   total: number;
@@ -50,12 +78,12 @@ export interface EnrichmentProgress {
   successCount: number;
 }
 
-// â”€â”€â”€ Hook principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Hook principal ───────────────────────────────────────────────────────────
 export function useListaContatos(listaId: string | undefined) {
   const queryClient = useQueryClient();
   const abortSearchRef = useRef<boolean>(false);
 
-  // â”€â”€â”€ Estado de progresso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Estado de progresso ──────────────────────────────────────────────────
   const [validationProgress, setValidationProgress] = useState<ValidationProgress>({
     current: 0, total: 0, invalid: 0, totalPending: 0,
     batchSize: 50, batchesProcessed: 0, status: "idle",
@@ -75,18 +103,13 @@ export function useListaContatos(listaId: string | undefined) {
     status: "idle", current: 0, total: 0, successCount: 0,
   });
 
-  // â”€â”€â”€ Query: dados da lista â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Query: dados da lista ────────────────────────────────────────────────
   const { data: lista, isLoading: loadingLista } = useQuery({
     queryKey: ["lista", listaId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Lista | null> => {
       if (!listaId) return null;
-      const { data, error } = await supabase
-        .from("listas")
-        .select("*")
-        .eq("id", listaId)
-        .single();
-      if (error) throw error;
-      return data;
+      const res = await api.get<{ lista: Lista }>(`/listas/${listaId}`);
+      return res.lista;
     },
     enabled: !!listaId,
   });
@@ -94,95 +117,47 @@ export function useListaContatos(listaId: string | undefined) {
   // Sincroniza progresso de buscas com o BD
   useEffect(() => {
     if (!lista) return;
-    const usadas = lista.google_queries_usadas?.length ?? 0;
-    const restantes = Math.max(0, 12 - usadas);
+    const usadas = lista.googleQueriesUsadas?.length ?? 0;
+    const total = lista.googleVariacoesIa?.length ?? 12;
+    const restantes = Math.max(0, total - usadas);
     setSearchProgress({
-      queryAtual: lista.google_queries_usadas?.[usadas - 1] ?? null,
+      queryAtual: lista.googleQueriesUsadas?.[usadas - 1] ?? null,
       queriesRestantes: restantes,
       todasUsadas: restantes === 0,
     });
   }, [lista]);
 
-  // â”€â”€â”€ Query: contatos via RPC paginado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Substitui o while(hasMore) que carregava atÃ© 50k registros no frontend
+  // ── Query: contatos paginados ────────────────────────────────────────────
   const { data: contatos, refetch, isLoading: loadingContatos } = useQuery({
     queryKey: ["lista-contatos", listaId],
     queryFn: async (): Promise<ListaContatoEnriquecido[]> => {
       if (!listaId) return [];
 
       const PAGE_SIZE = 500;
-      let page = 0;
-      let allContatos: ListaContatoEnriquecido[] = [];
+      let page = 1;
+      let all: ListaContatoEnriquecido[] = [];
       let hasMore = true;
 
-      // A RPC retorna os dados jÃ¡ com outras_listas calculadas no banco
-      // Evitando o loop de N queries de duplicatas no cliente
       while (hasMore) {
-        const { data, error } = await supabase.rpc(
-          "get_lista_contatos_com_duplicatas",
-          {
-            p_lista_id: listaId,
-            p_offset: page * PAGE_SIZE,
-            p_limit: PAGE_SIZE,
-          }
-        );
+        const res = await api.get<{
+          contatos: ListaContatoEnriquecido[];
+          hasMore: boolean;
+          total: number;
+        }>(`/listas/${listaId}/contatos?page=${page}&limit=${PAGE_SIZE}`);
 
-        if (error) throw error;
+        all = [...all, ...(res.contatos ?? [])];
+        hasMore = res.hasMore ?? false;
+        page++;
 
-        const batch = data as { contato_id: string; id: string; lista_id: string; status_whatsapp: string | null; telefone_normalizado: string | null; mensagem_enviada: boolean | null; fonte_busca: string | null; created_at: string | null; outras_listas: string[] }[];
-
-        if (!batch || batch.length === 0) {
-          hasMore = false;
-          break;
-        }
-
-        // Buscar dados do contato em um Ãºnico batch para a pÃ¡gina
-        const contatoIds = batch.map((b) => b.contato_id);
-        const { data: contatosData, error: contatosError } = await supabase
-          .from("contatos")
-          .select("*")
-          .in("id", contatoIds);
-
-        if (contatosError) throw contatosError;
-
-        const contatoMap = new Map<string, ContatoRow>(
-          (contatosData ?? []).map((c) => [c.id, c])
-        );
-
-        const pagina: ListaContatoEnriquecido[] = batch.map((item) => ({
-          id: item.id,
-          lista_id: item.lista_id,
-          contato_id: item.contato_id,
-          status_whatsapp: item.status_whatsapp,
-          telefone_normalizado: item.telefone_normalizado,
-          mensagem_enviada: item.mensagem_enviada,
-          fonte_busca: item.fonte_busca,
-          created_at: item.created_at,
-          account_id: null,
-          status_na_lista: null,
-          whatsapp_validado_em: null,
-          contatos: contatoMap.get(item.contato_id) as ContatoRow,
-          outras_listas: item.outras_listas ?? [],
-        }));
-
-        allContatos = [...allContatos, ...pagina];
-
-        if (batch.length < PAGE_SIZE) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-
-        // VÃ¡lvula de seguranÃ§a: 50 pÃ¡ginas Ã— 500 = 25k registros max
-        if (page > 50) break;
+        if (page > 50) break; // válvula de segurança: 25k registros max
       }
 
-      return allContatos;
+      return all;
     },
     enabled: !!listaId,
   });
 
-  // â”€â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleBuscaAutomaticaInternal = useCallback(
     async (isUpdate: boolean) => {
@@ -203,31 +178,32 @@ export function useListaContatos(listaId: string | undefined) {
         if (loopCount > 25) break;
 
         try {
-          const { data, error } = await supabase.functions.invoke(
-            "buscar-empresas-google-maps",
-            { body: { lista_id: listaId } }
-          );
-
-          if (error) throw error;
+          const data = await api.post<{
+            inseridos: number;
+            duplicados: number;
+            queryUtilizada: string;
+            queriesRestantes: number;
+            todasQueriesUsadas: boolean;
+          }>("/prospeccao/google-maps", { listaId });
 
           queriesProcessadas++;
-          totalNovos += (data.novos_adicionados as number) || 0;
-          totalDuplicados += (data.duplicados as number) || 0;
-          todasUsadas = data.todas_queries_usadas as boolean;
+          totalNovos += data.inseridos ?? 0;
+          totalDuplicados += data.duplicados ?? 0;
+          todasUsadas = data.todasQueriesUsadas ?? false;
 
           setAutoSearchProgress((prev) => ({
             ...prev,
-            currentQuery: (data.query_utilizada as string) || "",
+            currentQuery: data.queryUtilizada ?? "",
             completedQueries: queriesProcessadas,
-            totalQueries: queriesProcessadas + ((data.queries_restantes as number) || 0),
+            totalQueries: queriesProcessadas + (data.queriesRestantes ?? 0),
             totalNovos,
             totalDuplicados,
           }));
 
           setSearchProgress({
-            queryAtual: data.query_utilizada as string,
-            queriesRestantes: (data.queries_restantes as number) ?? 0,
-            todasUsadas: (data.todas_queries_usadas as boolean) ?? false,
+            queryAtual: data.queryUtilizada ?? null,
+            queriesRestantes: data.queriesRestantes ?? 0,
+            todasUsadas: data.todasQueriesUsadas ?? false,
           });
 
           if (!todasUsadas && !abortSearchRef.current) {
@@ -257,11 +233,7 @@ export function useListaContatos(listaId: string | undefined) {
 
   const handleAtualizarLista = useCallback(async () => {
     abortSearchRef.current = false;
-    await supabase
-      .from("listas")
-      .update({ google_queries_usadas: [] })
-      .eq("id", listaId!);
-
+    await api.patch(`/listas/${listaId!}`, { googleQueriesUsadas: [] });
     setSearchProgress({ queryAtual: null, queriesRestantes: 12, todasUsadas: false });
     return handleBuscaAutomaticaInternal(true);
   }, [listaId, handleBuscaAutomaticaInternal]);
@@ -273,17 +245,9 @@ export function useListaContatos(listaId: string | undefined) {
 
   const handleResetarErros = useCallback(
     async (listaIdParam: string) => {
-      const erroCount =
-        contatos?.filter((c) => c.status_whatsapp === "erro").length ?? 0;
+      const erroCount = contatos?.filter((c) => c.status_whatsapp === "erro").length ?? 0;
       if (erroCount === 0) return { erroCount: 0 };
-
-      const { error } = await supabase
-        .from("lista_contato")
-        .update({ status_whatsapp: "nao_validado", whatsapp_validado_em: null })
-        .eq("lista_id", listaIdParam)
-        .eq("status_whatsapp", "erro");
-
-      if (error) throw error;
+      await api.post(`/listas/${listaIdParam}/resetar-erros`, {});
       await refetch();
       return { erroCount };
     },
@@ -297,8 +261,7 @@ export function useListaContatos(listaId: string | undefined) {
           (item) =>
             !item.status_whatsapp ||
             item.status_whatsapp === "nao_validado" ||
-            item.status_whatsapp === "erro" ||
-            !item.telefone_normalizado
+            item.status_whatsapp === "erro"
         ).length ?? 0;
 
       const revalidateCount = forceRevalidate
@@ -310,7 +273,7 @@ export function useListaContatos(listaId: string | undefined) {
       setValidationProgress({
         current: 0, total: revalidateCount, invalid: 0,
         totalPending: revalidateCount, batchSize: 50, batchesProcessed: 0,
-        status: "validating", message: "Iniciando validaÃ§Ã£o...", erros: 0, valid: 0,
+        status: "validating", message: "Iniciando validação...", erros: 0, valid: 0,
       });
 
       let processedCount = 0;
@@ -329,39 +292,35 @@ export function useListaContatos(listaId: string | undefined) {
           message: `Validando lote ${attempt}... (${processedCount}/${revalidateCount})`,
         }));
 
-        const { data, error } = await supabase.functions.invoke(
-          "validar-whatsapp-lote",
-          { body: { lista_id: listaId, force: forceRevalidate, limit: 50 } }
-        );
+        const data = await api.post<{
+          processados: number;
+          validos: number;
+          invalidos: number;
+          erros: number;
+          remaining: number;
+          hasMore: boolean;
+        }>("/prospeccao/validar-whatsapp", {
+          listaId: listaId!,
+          force: forceRevalidate,
+          limit: 50,
+        });
 
-        if (error) throw error;
-
-        if (data && (data as { success: boolean }).success === false) {
-          const errData = data as { error: string; message?: string; details?: string };
-          if (errData.error === "API_NAO_SUPORTA_VALIDACAO") {
-            setValidationProgress((prev) => ({
-              ...prev, status: "error",
-              message: errData.message || "A API nÃ£o suporta validaÃ§Ã£o.",
-            }));
-            await refetch();
-            return { validCount, invalidCount };
-          }
-          throw new Error(errData.message || "Erro retornado pela API.");
+        if (data.success === false) {
+          setValidationProgress((prev) => ({
+            ...prev, status: "error",
+            message: data.message || "A API não suporta validação.",
+          }));
+          await refetch();
+          return { validCount, invalidCount };
         }
 
-        const batchData = data as {
-          remaining?: number; processed?: number; hasMore?: boolean;
-          validos?: number; invalidos?: number; erros?: number;
-          diagnostico?: { updates_sucesso?: number; retornados_api?: number };
-        };
-
-        const currentRemaining = batchData.remaining ?? 0;
-        const currentProcessed = batchData.processed ?? 0;
+        const currentRemaining = data.remaining ?? 0;
+        const currentProcessed = data.processados ?? 0;
 
         if (currentProcessed > 0 && currentRemaining >= lastRemaining) {
           noProgressCount++;
           if (noProgressCount >= 10) {
-            throw new Error("Processo travado. Verifique se o WhatsApp estÃ¡ conectado.");
+            throw new Error("Processo travado. Verifique se o WhatsApp está conectado.");
           }
         } else if (currentProcessed > 0) {
           noProgressCount = 0;
@@ -369,10 +328,10 @@ export function useListaContatos(listaId: string | undefined) {
 
         lastRemaining = currentRemaining;
         processedCount = revalidateCount - currentRemaining;
-        validCount += batchData.validos ?? 0;
-        invalidCount += batchData.invalidos ?? 0;
-        errorCount += batchData.erros ?? 0;
-        hasMore = (batchData.hasMore ?? false) && (currentProcessed > 0 || currentRemaining > 0);
+        validCount += data.validos ?? 0;
+        invalidCount += data.invalidos ?? 0;
+        errorCount += data.erros ?? 0;
+        hasMore = (data.hasMore ?? false) && (currentProcessed > 0 || currentRemaining > 0);
 
         if (currentProcessed === 0 && currentRemaining === 0) hasMore = false;
 
@@ -389,7 +348,7 @@ export function useListaContatos(listaId: string | undefined) {
       }
 
       setValidationProgress((prev) => ({
-        ...prev, status: "done", message: "ValidaÃ§Ã£o concluÃ­da!",
+        ...prev, status: "done", message: "Validação concluída!",
       }));
 
       return { validCount, invalidCount };
@@ -399,9 +358,7 @@ export function useListaContatos(listaId: string | undefined) {
 
   const handleEnriquecer = useCallback(
     async (): Promise<{ successCount: number; errorCount: number }> => {
-      const comWebsite = contatos?.filter(
-        (item) => item.contatos?.website?.trim()
-      ) ?? [];
+      const comWebsite = contatos?.filter((item) => item.contatos?.website?.trim()) ?? [];
 
       if (comWebsite.length === 0) return { successCount: 0, errorCount: 0 };
 
@@ -415,16 +372,8 @@ export function useListaContatos(listaId: string | undefined) {
       for (let i = 0; i < comWebsite.length; i++) {
         const item = comWebsite[i];
         try {
-          const { data, error } = await supabase.functions.invoke("enriquecer-contato", {
-            body: { contato_id: item.contato_id, website: item.contatos.website },
-          });
-
-          const result = data as { sucesso?: boolean } | null;
-          if (!error && result?.sucesso) {
-            successCount++;
-          } else {
-            errorCount++;
-          }
+          await api.post(`/contatos/${item.contato_id}/enriquecer`, {});
+          successCount++;
         } catch {
           errorCount++;
         }

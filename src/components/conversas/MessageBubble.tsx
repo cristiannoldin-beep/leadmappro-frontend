@@ -10,7 +10,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 interface MessageBubbleProps {
@@ -255,16 +255,9 @@ export function MessageBubble({ message, accountId, reactions = [], onReactionAd
     if (!editText.trim() || editText === message.conteudo) { setEditMode(false); return; }
     setIsSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const { data, error } = await supabase.functions.invoke("editar-mensagem-chat", {
-        body: { interacao_id: message.id, novo_conteudo: editText.trim() },
-      });
-      if (error || !data?.sucesso) {
-        toast.error(data?.error || "Erro ao editar mensagem");
-      } else {
-        toast.success("Mensagem editada");
-        setEditMode(false);
-      }
+      await api.patch(`/chats/mensagens/${message.id}`, { conteudo: editText.trim() });
+      toast.success("Mensagem editada");
+      setEditMode(false);
     } catch {
       toast.error("Erro ao editar mensagem");
     } finally {
@@ -275,13 +268,9 @@ export function MessageBubble({ message, accountId, reactions = [], onReactionAd
   // â”€â”€ Reaction send â”€â”€
   const handleReaction = async (emoji: string) => {
     setReactionOpen(false);
-    if (!accountId) return;
-    await supabase.from("interacao_reactions" as any).upsert({
-      interacao_id: message.id,
-      account_id: accountId,
-      emoji,
-      is_from_me: true,
-    }, { onConflict: "interacao_id,account_id,is_from_me" });
+    try {
+      await api.post(`/chats/mensagens/${message.id}/reactions`, { emoji });
+    } catch { /* silencioso */ }
     onReactionAdded?.();
   };
 

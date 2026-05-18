@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, RefreshCw } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 interface Suggestion {
   text: string;
@@ -45,10 +45,8 @@ export function SmartReplySuggestions({ contatoId, onSelect }: SmartReplySuggest
     if (isRefresh) setRefreshing(true); else setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("sugerir-respostas-chat", {
-        body: { contato_id: contatoId },
-      });
-      if (!error && data?.suggestions?.length) {
+      const data = await api.post<{ suggestions?: Suggestion[] }>("/chats/sugerir-respostas", { contatoId });
+      if (data?.suggestions?.length) {
         setSuggestions(data.suggestions);
       }
     } catch {

@@ -7,7 +7,7 @@ import {
   Sparkles, Maximize2, RefreshCw, User, Smile, Briefcase,
   CheckCircle2, Languages, Loader2, ChevronRight, ChevronLeft,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -47,20 +47,13 @@ export function AIComposerButton({ message, onComposed, disabled }: AIComposerBu
     if (!message.trim()) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("melhorar-mensagem-ia", {
-        body: {
-          mensagem: message,
-          acao_chat: action,
-          idioma_destino: targetLang,
-        },
+      const data = await api.post<{ mensagemMelhorada: string }>("/ia/melhorar-mensagem", {
+        mensagem: message,
+        acaoChat: action,
+        idiomaDestino: targetLang,
       });
 
-      if (error || !data?.sucesso) {
-        toast.error(data?.error || "Erro ao processar com IA");
-        return;
-      }
-
-      onComposed(data.mensagem_melhorada);
+      onComposed(data.mensagemMelhorada);
       setOpen(false);
       setShowTranslate(false);
     } catch {
