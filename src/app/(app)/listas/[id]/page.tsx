@@ -9,14 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
   ArrowLeft, FileSpreadsheet, Search, Phone, Globe,
-  Users, MapPin, Loader2, Sparkles, Play, RefreshCw,
+  Users, MapPin, Loader2, Play, RefreshCw,
   CheckCircle2, MessageCircle,
 } from 'lucide-react'
 
@@ -61,7 +60,6 @@ export default function ListaResultadosPage() {
 
   // Estados de prospecção
   const [variacoes, setVariacoes] = useState<string[]>([])
-  const [gerando, setGerando] = useState(false)
   const [buscando, setBuscando] = useState(false)
   const [buscaProgress, setBuscaProgress] = useState(0)
   const [buscaStatus, setBuscaStatus] = useState('')
@@ -91,54 +89,43 @@ export default function ListaResultadosPage() {
   useEffect(() => { fetchLista() }, [fetchLista])
   useEffect(() => { fetchContatos() }, [fetchContatos])
 
-  // Gerar variações com OpenAI
-  const handleGerarVariacoes = async () => {
-    if (!lista?.segmento && !queryManual.trim()) {
-      toast.error('Informe um segmento para gerar variações.')
-      return
-    }
-    setGerando(true)
-    try {
-      const result = await api.post<{ variacoes: string[]; quantidade: number }>(
-        '/prospeccao/gerar-variacoes',
-        { listaId: id, segmento: lista?.segmento || queryManual.trim(), cidade: lista?.cidade, estado: lista?.estado }
-      )
-      setVariacoes(result.variacoes)
-      toast.success(`${result.quantidade} variações geradas!`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao gerar variações.')
-    } finally {
-      setGerando(false)
-    }
-  }
-
-  // Buscar no Google Maps (percorre todas as variações)
+  // Buscar no Google Maps — gera variações automaticamente (até 15) se não existirem
   const handleBuscar = async () => {
-    if (variacoes.length === 0 && !queryManual.trim()) {
-      toast.error('Gere as variações primeiro ou informe uma query manual.')
+    const segmento = lista?.segmento || queryManual.trim()
+    if (variacoes.length === 0 && !segmento) {
+      toast.error('Informe um segmento para buscar.')
       return
     }
     setBuscando(true)
     setBuscaProgress(0)
-
-    const total = variacoes.length || 1
-    let acumulado = 0
+    let vars = variacoes
 
     try {
-      // Se há variações salvas, executa uma por vez (cada call usa a próxima não usada)
-      const rounds = variacoes.length > 0 ? variacoes.length : 1
+      if (vars.length === 0) {
+        setBuscaStatus('Gerando variações de busca…')
+        const result = await api.post<{ variacoes: string[]; quantidade: number }>(
+          '/prospeccao/gerar-variacoes',
+          { listaId: id, segmento, cidade: lista?.cidade, estado: lista?.estado, limite: 15 }
+        )
+        vars = result.variacoes.slice(0, 15)
+        setVariacoes(vars)
+      }
+
+      const rounds = vars.length || 1
+      let acumulado = 0
 
       for (let i = 0; i < rounds; i++) {
         setBuscaStatus(`Buscando variação ${i + 1} de ${rounds}…`)
+        setBuscaProgress(Math.round((i / rounds) * 100))
         const result = await api.post<{
           inseridos: number; duplicados: number; queryUtilizada: string;
           todasQueriesUsadas: boolean; queriesRestantes: number
         }>(
           '/prospeccao/google-maps',
-          { listaId: id, ...(variacoes.length === 0 ? { query: queryManual.trim() } : {}) }
+          { listaId: id, ...(vars.length === 0 ? { query: segmento } : {}) }
         )
         acumulado += result.inseridos
-        setBuscaProgress(Math.round(((i + 1) / total) * 100))
+        setBuscaProgress(Math.round(((i + 1) / rounds) * 100))
         if (result.todasQueriesUsadas) break
         if (i < rounds - 1) await new Promise(r => setTimeout(r, 500))
       }
@@ -256,25 +243,31 @@ export default function ListaResultadosPage() {
         <div className="rounded-xl border bg-card p-5 space-y-4">
           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Prospecção Google Maps</p>
 
-          {/* Etapa 1 — Gerar Variações */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Etapa 1 — Gerar variações de busca com IA</Label>
+          <div className="space-y-3">
             <div className="flex gap-2">
               <Input
                 placeholder="Segmento (ex: funerárias, clínicas médicas...)"
                 value={queryManual}
                 onChange={e => setQueryManual(e.target.value)}
-                disabled={gerando}
+                disabled={buscando}
                 className="flex-1"
               />
-              <Button onClick={handleGerarVariacoes} disabled={gerando} variant="outline" className="gap-2 shrink-0">
-                {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {gerando ? 'Gerando…' : variacoes.length > 0 ? 'Regerar' : 'Gerar Variações'}
+              <Button onClick={handleBuscar} disabled={buscando || (!lista?.segmento && !queryManual.trim())} className="gap-2 shrink-0">
+                {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {buscando ? buscaStatus || 'Buscando…' : variacoes.length > 0 ? `Buscar (${variacoes.length} variações)` : 'Buscar'}
               </Button>
+              {contatos.length > 0 && (
+                <Button onClick={handleValidarWhatsApp} disabled={validando || naoValidadosCount === 0} variant="outline" className="gap-2 shrink-0">
+                  {validando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {validando ? 'Validando…' : `Validar WhatsApp (${naoValidadosCount})`}
+                </Button>
+              )}
             </div>
 
-            {/* Chips das variações */}
-            {variacoes.length > 0 && (
+            {buscando && <Progress value={buscaProgress} className="h-1.5" />}
+
+            {/* Chips das variações já geradas */}
+            {variacoes.length > 0 && !buscando && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {variacoes.map((v, i) => {
                   const usada = lista?.googleQueriesUsadas?.some(q => q.includes(v.split(' em ')[0]))
@@ -285,26 +278,6 @@ export default function ListaResultadosPage() {
                   )
                 })}
               </div>
-            )}
-          </div>
-
-          {/* Etapa 2 — Buscar */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Etapa 2 — Buscar no Google Maps</Label>
-            <div className="flex gap-2">
-              <Button onClick={handleBuscar} disabled={buscando || (variacoes.length === 0 && !queryManual.trim())} className="gap-2">
-                {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                {buscando ? buscaStatus || 'Buscando…' : variacoes.length > 0 ? `Buscar (${variacoes.length} variações)` : 'Buscar'}
-              </Button>
-              {contatos.length > 0 && (
-                <Button onClick={handleValidarWhatsApp} disabled={validando || naoValidadosCount === 0} variant="outline" className="gap-2">
-                  {validando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {validando ? 'Validando…' : `Validar WhatsApp (${naoValidadosCount})`}
-                </Button>
-              )}
-            </div>
-            {buscando && (
-              <Progress value={buscaProgress} className="h-1.5" />
             )}
           </div>
         </div>
