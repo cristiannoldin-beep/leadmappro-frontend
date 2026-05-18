@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { HeroBackground } from '@/components/HeroBackground'
 import { PricingSection } from '@/components/PricingSection'
@@ -59,15 +58,6 @@ export default function LandingPage() {
   const [waTyping, setWaTyping] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const { user } = useAuth()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (user) {
-      const adminEmails = ['cristiannoldin@gmail.com', 'cazagrande.neto@gmail.com']
-      const isAdmin = user.email && adminEmails.some((e) => user.email.toLowerCase().trim() === e.toLowerCase().trim())
-      window.location.href = `https://app.leadmappro.com.br${isAdmin ? '/admin' : '/dashboard'}`
-    }
-  }, [user])
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20)
@@ -99,6 +89,16 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen font-sans overflow-x-hidden">
+
+      {/* LOGGED-IN BANNER */}
+      {user && (
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-emerald-500 text-black text-center text-sm py-2 px-4 font-semibold flex items-center justify-center gap-3">
+          <span>Você já tem uma conta. Acesse seu painel.</span>
+          <a href="https://app.leadmappro.com.br/dashboard" className="underline font-bold hover:opacity-80 transition-opacity">
+            Ir para o App →
+          </a>
+        </div>
+      )}
 
       {/* NAVBAR */}
       <header className={cn('fixed top-0 left-0 right-0 z-50 transition-all duration-300', scrolled ? 'bg-[#09090b]/95 backdrop-blur-xl border-b border-white/[0.06]' : 'bg-transparent')}>
