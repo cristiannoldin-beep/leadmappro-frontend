@@ -110,11 +110,10 @@ export default function AdminInfraPage() {
       if (data.ok) {
         toast.success(`UazAPI OK ✓  endpoint: ${data.endpointFuncionando}`)
       } else if (data.erro) {
-        toast.error(`UazAPI inacessível: ${data.erro}`)
+        toast.error(`UazAPI inacessível: ${data.erro} — URL: ${data.baseUrl}`)
       } else {
-        const tentativas = Object.entries(data.resultados ?? {}).map(([p, r]) => `${p}: ${(r as {status?: number; erro?: string}).status ?? (r as {erro?: string}).erro}`).join(' | ')
-        toast.error(`UazAPI 404 em todos os endpoints. Abra o console para detalhes.`)
-        console.error('Tentativas:', tentativas)
+        toast.error(`404 em todos os endpoints. URL testada: ${data.baseUrl ?? 'não configurada'}`)
+        console.error('UazAPI diagnóstico completo:', JSON.stringify(data, null, 2))
       }
     } catch {
       toast.error('Erro ao testar conexão UazAPI')
