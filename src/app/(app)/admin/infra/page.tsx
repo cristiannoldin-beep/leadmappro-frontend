@@ -31,12 +31,14 @@ export default function AdminInfraPage() {
   const [casaStatus, setCasaStatus] = useState<CredStatus | null>(null)
   const [googleStatus, setGoogleStatus] = useState<CredStatus | null>(null)
   const [openaiStatus, setOpenaiStatus] = useState<CredStatus | null>(null)
+  const [uazapiStatus, setUazapiStatus] = useState<CredStatus | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [editingPlan, setEditingPlan] = useState<Record<string, { name: string; price: string; limits: string }>>({})
 
   const [asaasInput, setAsaasInput] = useState('')
   const [casaInput, setCasaInput] = useState('')
   const [metaInputs, setMetaInputs] = useState({ appId: '', secret: '', sysToken: '', wabaId: '', verifyToken: '' })
+  const [uazapiInputs, setUazapiInputs] = useState({ baseUrl: '', globalKey: '' })
   const [googleInput, setGoogleInput] = useState('')
   const [googleShowKey, setGoogleShowKey] = useState(false)
   const [openaiInput, setOpenaiInput] = useState('')
@@ -51,12 +53,13 @@ export default function AdminInfraPage() {
   }, [user])
 
   const loadData = async () => {
-    const [a, m, c, g, o, p] = await Promise.allSettled([
+    const [a, m, c, g, o, u, p] = await Promise.allSettled([
       api.get<CredStatus>('/admin/credenciais/ASAAS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/META_APP_ID'),
       api.get<CredStatus>('/admin/credenciais/CASADOSDADOS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/GOOGLE_MAPS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/OPENAI_API_KEY'),
+      api.get<CredStatus>('/admin/credenciais/UAZAPI_GLOBAL_KEY'),
       api.get<{ plans: Plan[] }>('/admin/plans'),
     ])
     if (a.status === 'fulfilled') setAsaasStatus(a.value)
@@ -64,6 +67,7 @@ export default function AdminInfraPage() {
     if (c.status === 'fulfilled') setCasaStatus(c.value)
     if (g.status === 'fulfilled') setGoogleStatus(g.value)
     if (o.status === 'fulfilled') setOpenaiStatus(o.value)
+    if (u.status === 'fulfilled') setUazapiStatus(u.value)
     if (p.status === 'fulfilled') setPlans((p.value as { plans: Plan[] }).plans ?? [])
   }
 
@@ -91,6 +95,22 @@ export default function AdminInfraPage() {
       loadData()
     } catch {
       toast.error('Erro ao salvar credencial')
+    }
+  }
+
+  const saveUazapiKeys = async () => {
+    const toSave = [
+      { chave: 'UAZAPI_GLOBAL_KEY', valor: uazapiInputs.globalKey },
+      { chave: 'UAZAPI_BASE_URL', valor: uazapiInputs.baseUrl },
+    ].filter(x => !!x.valor.trim())
+    if (!toSave.length) return
+    try {
+      for (const item of toSave) await api.post('/admin/credenciais', { chave: item.chave, valor: item.valor.trim() })
+      toast.success('Credenciais UazAPI salvas!')
+      setUazapiInputs({ baseUrl: '', globalKey: '' })
+      loadData()
+    } catch {
+      toast.error('Erro ao salvar credenciais UazAPI')
     }
   }
 
@@ -318,6 +338,51 @@ export default function AdminInfraPage() {
                     <Zap className="h-4 w-4" /> Salvar Credenciais da Meta
                   </Button>
                   <p className="text-[10px] text-slate-600 text-center">As credenciais serão usadas para autenticar o Embedded Signup de novos clientes.</p>
+                </div>
+              </div>
+
+              {/* UazAPI */}
+              <div className="rounded-2xl bg-slate-900 border border-white/5 overflow-hidden">
+                <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-500/10 rounded-xl"><MessageSquare className="h-4 w-4 text-green-400" /></div>
+                    <div>
+                      <p className="font-black text-white text-sm">UazAPI (WhatsApp)</p>
+                      <p className="text-xs text-slate-500">URL do servidor e chave global de admin</p>
+                    </div>
+                  </div>
+                  <StatusDot ok={!!uazapiStatus?.configured} />
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                      URL do Servidor <Globe className="h-3 w-3 text-slate-700" />
+                    </Label>
+                    <Input
+                      type="text"
+                      placeholder={uazapiStatus?.configured ? 'Configurado ✓' : 'https://uazapi.seudominio.com.br'}
+                      value={uazapiInputs.baseUrl}
+                      onChange={e => setUazapiInputs(p => ({ ...p, baseUrl: e.target.value }))}
+                      className="bg-slate-800 border-white/10 h-10 rounded-xl text-sm text-slate-300 font-mono focus:border-green-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                      Global API Key (apikey) <Lock className="h-3 w-3 text-slate-700" />
+                    </Label>
+                    <Input
+                      type="password"
+                      placeholder="Chave de admin do UazAPI"
+                      value={uazapiInputs.globalKey}
+                      onChange={e => setUazapiInputs(p => ({ ...p, globalKey: e.target.value }))}
+                      className="bg-slate-800 border-white/10 h-10 rounded-xl text-sm text-slate-300 font-mono focus:border-green-500"
+                    />
+                  </div>
+                  <Button onClick={saveUazapiKeys}
+                    className="w-full h-11 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl shadow-lg shadow-green-600/20 gap-2">
+                    <Zap className="h-4 w-4" /> Salvar Configuração UazAPI
+                  </Button>
+                  <p className="text-[10px] text-slate-600">Necessário para criação de instâncias e geração de QR Code. Configure a URL do seu servidor UazAPI e a chave global de admin.</p>
                 </div>
               </div>
 
@@ -584,6 +649,7 @@ export default function AdminInfraPage() {
               </div>
               <div className="p-6 space-y-2">
                 {[
+                  { name: 'UazAPI WhatsApp', ok: !!uazapiStatus?.configured },
                   { name: 'Asaas Pagamentos', ok: !!asaasStatus?.configured },
                   { name: 'Casa dos Dados B2B API', ok: !!casaStatus?.configured },
                   { name: 'Meta Cloud API', ok: !!metaStatus?.configured },
