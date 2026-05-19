@@ -39,6 +39,7 @@ export default function AdminInfraPage() {
   const [casaInput, setCasaInput] = useState('')
   const [metaInputs, setMetaInputs] = useState({ appId: '', secret: '', sysToken: '', wabaId: '', verifyToken: '' })
   const [uazapiInputs, setUazapiInputs] = useState({ baseUrl: '', globalKey: '' })
+  const [testingUazapi, setTestingUazapi] = useState(false)
   const [googleInput, setGoogleInput] = useState('')
   const [googleShowKey, setGoogleShowKey] = useState(false)
   const [openaiInput, setOpenaiInput] = useState('')
@@ -95,6 +96,23 @@ export default function AdminInfraPage() {
       loadData()
     } catch {
       toast.error('Erro ao salvar credencial')
+    }
+  }
+
+  const testarUazapi = async () => {
+    setTestingUazapi(true)
+    try {
+      const data = await api.get<{ ok: boolean; erro?: string; status?: number; baseUrl?: string; url?: string; resposta?: string }>('/whatsapp/testar-conexao')
+      if (data.ok) {
+        toast.success(`UazAPI OK [${data.baseUrl}] → status ${data.status}`)
+      } else {
+        toast.error(`Falha UazAPI [${data.baseUrl ?? '?'}]: ${data.erro ?? `HTTP ${data.status}`}`)
+        if (data.resposta) console.error('UazAPI resposta:', data.resposta)
+      }
+    } catch {
+      toast.error('Erro ao testar conexão UazAPI')
+    } finally {
+      setTestingUazapi(false)
     }
   }
 
@@ -378,10 +396,21 @@ export default function AdminInfraPage() {
                       className="bg-slate-800 border-white/10 h-10 rounded-xl text-sm text-slate-300 font-mono focus:border-green-500"
                     />
                   </div>
-                  <Button onClick={saveUazapiKeys}
-                    className="w-full h-11 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl shadow-lg shadow-green-600/20 gap-2">
-                    <Zap className="h-4 w-4" /> Salvar Configuração UazAPI
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={saveUazapiKeys}
+                      className="flex-1 h-11 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl shadow-lg shadow-green-600/20 gap-2">
+                      <Zap className="h-4 w-4" /> Salvar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={testarUazapi}
+                      disabled={testingUazapi || !uazapiStatus?.configured}
+                      className="h-11 px-5 font-black uppercase text-[10px] tracking-widest rounded-xl border-white/10 text-slate-300 hover:bg-white/5 gap-2"
+                    >
+                      {testingUazapi && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Testar
+                    </Button>
+                  </div>
                   <p className="text-[10px] text-slate-600">Necessário para criação de instâncias e geração de QR Code. Configure a URL do seu servidor UazAPI e a chave global de admin.</p>
                 </div>
               </div>
