@@ -102,12 +102,16 @@ export default function AdminInfraPage() {
   const testarUazapi = async () => {
     setTestingUazapi(true)
     try {
-      const data = await api.get<{ ok: boolean; erro?: string; status?: number; baseUrl?: string; url?: string; resposta?: string }>('/whatsapp/testar-conexao')
+      const data = await api.get<{ ok: boolean; erro?: string; status?: number; baseUrl?: string; endpointFuncionando?: string; resultados?: Record<string, unknown> }>('/whatsapp/testar-conexao')
+      console.log('UazAPI diagnóstico:', JSON.stringify(data, null, 2))
       if (data.ok) {
-        toast.success(`UazAPI OK [${data.baseUrl}] → status ${data.status}`)
+        toast.success(`UazAPI OK ✓  endpoint: ${data.endpointFuncionando}`)
+      } else if (data.erro) {
+        toast.error(`UazAPI inacessível: ${data.erro}`)
       } else {
-        toast.error(`Falha UazAPI [${data.baseUrl ?? '?'}]: ${data.erro ?? `HTTP ${data.status}`}`)
-        if (data.resposta) console.error('UazAPI resposta:', data.resposta)
+        const tentativas = Object.entries(data.resultados ?? {}).map(([p, r]) => `${p}: ${(r as {status?: number; erro?: string}).status ?? (r as {erro?: string}).erro}`).join(' | ')
+        toast.error(`UazAPI 404 em todos os endpoints. Abra o console para detalhes.`)
+        console.error('Tentativas:', tentativas)
       }
     } catch {
       toast.error('Erro ao testar conexão UazAPI')
