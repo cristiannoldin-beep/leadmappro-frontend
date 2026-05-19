@@ -32,6 +32,7 @@ export default function AdminInfraPage() {
   const [googleStatus, setGoogleStatus] = useState<CredStatus | null>(null)
   const [openaiStatus, setOpenaiStatus] = useState<CredStatus | null>(null)
   const [uazapiStatus, setUazapiStatus] = useState<CredStatus | null>(null)
+  const [uazapiUrlStatus, setUazapiUrlStatus] = useState<CredStatus | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [editingPlan, setEditingPlan] = useState<Record<string, { name: string; price: string; limits: string }>>({})
 
@@ -54,13 +55,14 @@ export default function AdminInfraPage() {
   }, [user])
 
   const loadData = async () => {
-    const [a, m, c, g, o, u, p] = await Promise.allSettled([
+    const [a, m, c, g, o, u, uu, p] = await Promise.allSettled([
       api.get<CredStatus>('/admin/credenciais/ASAAS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/META_APP_ID'),
       api.get<CredStatus>('/admin/credenciais/CASADOSDADOS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/GOOGLE_MAPS_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/OPENAI_API_KEY'),
       api.get<CredStatus>('/admin/credenciais/UAZAPI_GLOBAL_KEY'),
+      api.get<CredStatus>('/admin/credenciais/UAZAPI_BASE_URL'),
       api.get<{ plans: Plan[] }>('/admin/plans'),
     ])
     if (a.status === 'fulfilled') setAsaasStatus(a.value)
@@ -69,6 +71,7 @@ export default function AdminInfraPage() {
     if (g.status === 'fulfilled') setGoogleStatus(g.value)
     if (o.status === 'fulfilled') setOpenaiStatus(o.value)
     if (u.status === 'fulfilled') setUazapiStatus(u.value)
+    if (uu.status === 'fulfilled') setUazapiUrlStatus(uu.value)
     if (p.status === 'fulfilled') setPlans((p.value as { plans: Plan[] }).plans ?? [])
   }
 
@@ -373,7 +376,7 @@ export default function AdminInfraPage() {
                       <p className="text-xs text-slate-500">URL do servidor e chave global de admin</p>
                     </div>
                   </div>
-                  <StatusDot ok={!!uazapiStatus?.configured} />
+                  <StatusDot ok={!!uazapiStatus?.configured && !!uazapiUrlStatus?.configured} />
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="space-y-1.5">
@@ -382,7 +385,7 @@ export default function AdminInfraPage() {
                     </Label>
                     <Input
                       type="text"
-                      placeholder={uazapiStatus?.configured ? 'Configurado ✓' : 'https://uazapi.seudominio.com.br'}
+                      placeholder={uazapiUrlStatus?.configured ? 'Configurado ✓' : 'https://leadmap.uazapi.com'}
                       value={uazapiInputs.baseUrl}
                       onChange={e => setUazapiInputs(p => ({ ...p, baseUrl: e.target.value }))}
                       className="bg-slate-800 border-white/10 h-10 rounded-xl text-sm text-slate-300 font-mono focus:border-green-500"
@@ -408,7 +411,7 @@ export default function AdminInfraPage() {
                     <Button
                       variant="outline"
                       onClick={testarUazapi}
-                      disabled={testingUazapi || !uazapiStatus?.configured}
+                      disabled={testingUazapi || (!uazapiStatus?.configured && !uazapiUrlStatus?.configured)}
                       className="h-11 px-5 font-black uppercase text-[10px] tracking-widest rounded-xl border-white/10 text-slate-300 hover:bg-white/5 gap-2"
                     >
                       {testingUazapi && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -682,7 +685,7 @@ export default function AdminInfraPage() {
               </div>
               <div className="p-6 space-y-2">
                 {[
-                  { name: 'UazAPI WhatsApp', ok: !!uazapiStatus?.configured },
+                  { name: 'UazAPI WhatsApp', ok: !!uazapiStatus?.configured && !!uazapiUrlStatus?.configured },
                   { name: 'Asaas Pagamentos', ok: !!asaasStatus?.configured },
                   { name: 'Casa dos Dados B2B API', ok: !!casaStatus?.configured },
                   { name: 'Meta Cloud API', ok: !!metaStatus?.configured },
