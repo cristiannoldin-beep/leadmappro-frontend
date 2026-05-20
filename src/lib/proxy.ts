@@ -29,11 +29,17 @@ export async function proxyToFastify(request: NextRequest, path: string): Promis
   }
 
   const url = new URL(request.url)
-  const res = await fetch(`${API_URL}${path}${url.search}`, {
-    method: request.method,
-    headers,
-    body,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}${path}${url.search}`, {
+      method: request.method,
+      headers,
+      body,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'API indisponível'
+    return NextResponse.json({ message: msg }, { status: 503 })
+  }
 
   if (res.status === 204) return new NextResponse(null, { status: 204 })
 

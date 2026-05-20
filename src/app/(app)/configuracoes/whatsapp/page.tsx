@@ -61,7 +61,9 @@ export default function ConexoesWhatsAppPage() {
   const [instanceName, setInstanceName] = useState('')
   const [generatingQR, setGeneratingQR] = useState(false)
   const [qrCodeBase64, setQrCodeBase64] = useState<string | null>(null)
+  const [waitingForQr, setWaitingForQr] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchConexoes = (instanceNameAtivo?: string) => {
     api.get<{ conexoes: WhatsappConexao[] } | WhatsappConexao[]>('/whatsapp/conexoes')
@@ -85,12 +87,18 @@ export default function ConexoesWhatsAppPage() {
       .finally(() => setLoading(false))
   }
 
+  const stopQrPolling = () => {
+    if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null }
+    setWaitingForQr(false)
+  }
+
   useEffect(() => {
     fetchConexoes()
     const interval = setInterval(() => fetchConexoes(), 15000)
     return () => {
       clearInterval(interval)
       if (pollingRef.current) clearInterval(pollingRef.current)
+      if (qrPollRef.current) clearInterval(qrPollRef.current)
     }
   }, [])
 
@@ -101,8 +109,9 @@ export default function ConexoesWhatsAppPage() {
     }
     setGeneratingQR(true)
     setQrCodeBase64(null)
+    stopQrPolling()
     try {
-      const data = await api.post<{ qrCode?: string; alreadyConnected?: boolean }>('/whatsapp/conexoes', {
+      const data = await api.post<{ qrCode?: string; alreadyConnected?: boolean; conexao?: { id: string } }>('/whatsapp/conexoes', {
         instanceName: instanceName.trim(),
         provider: 'uazapi',
         apelido: instanceName.trim(),
@@ -113,11 +122,34 @@ export default function ConexoesWhatsAppPage() {
         fetchConexoes()
         return
       }
+      const nome = instanceName.trim()
       if (data.qrCode) {
         setQrCodeBase64(data.qrCode)
         toast.success('QR Code gerado! Escaneie com seu WhatsApp.')
-        const nome = instanceName.trim()
         pollingRef.current = setInterval(() => fetchConexoes(nome), 4000)
+      } else if (data.conexao?.id) {
+        // QR não chegou na resposta — faz polling em /whatsapp/:id/qrcode
+        const conexaoId = data.conexao.id
+        setWaitingForQr(true)
+        toast.info('Aguardando QR Code do servidor...')
+        let attempts = 0
+        const pollQr = async () => {
+          attempts++
+          try {
+            const qrData = await api.get<{ qrCode?: string | null }>(`/whatsapp/${conexaoId}/qrcode`)
+            if (qrData.qrCode) {
+              setQrCodeBase64(qrData.qrCode)
+              stopQrPolling()
+              toast.success('QR Code gerado! Escaneie com seu WhatsApp.')
+              pollingRef.current = setInterval(() => fetchConexoes(nome), 4000)
+            } else if (attempts >= 10) {
+              stopQrPolling()
+              toast.error('Tempo esgotado. Verifique a configuração do UazAPI.')
+            }
+          } catch { if (attempts >= 10) stopQrPolling() }
+        }
+        qrPollRef.current = setInterval(pollQr, 3000)
+        pollQr()
       } else {
         toast.success('Conexão criada!')
         setDialogOpen(false)
@@ -256,7 +288,7 @@ export default function ConexoesWhatsAppPage() {
       {/* Add Connection Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(val) => {
         setDialogOpen(val)
-        if (!val) { setQrCodeBase64(null); setInstanceName('') }
+        if (!val) { setQrCodeBase64(null); setInstanceName(''); stopQrPolling() }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -273,7 +305,17 @@ export default function ConexoesWhatsAppPage() {
                 <p className="text-xs text-muted-foreground">Baseado em leitura de QR Code. O celular deve estar conectado.</p>
               </div>
             </div>
-            {!qrCodeBase64 ? (
+            {waitingForQr ? (
+              <div className="flex flex-col items-center gap-4 py-4">
+                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                <p className="text-sm text-muted-foreground text-center">
+                  Aguardando QR Code do servidor...
+                </p>
+                <Button variant="ghost" className="text-xs" onClick={() => { stopQrPolling(); setDialogOpen(false) }}>
+                  Cancelar
+                </Button>
+              </div>
+            ) : !qrCodeBase64 ? (
               <>
                 <div className="space-y-2">
                   <Label>Nome da Instância</Label>
@@ -300,7 +342,7 @@ export default function ConexoesWhatsAppPage() {
                 <p className="text-xs text-center text-muted-foreground animate-pulse">
                   Aguardando escaneamento...
                 </p>
-                <Button variant="ghost" className="text-xs" onClick={() => setQrCodeBase64(null)}>
+                <Button variant="ghost" className="text-xs" onClick={() => { setQrCodeBase64(null); stopQrPolling() }}>
                   Cancelar
                 </Button>
               </div>
