@@ -123,7 +123,23 @@ export default function ConexoesWhatsAppPage() {
         return
       }
       const nome = instanceName.trim()
-      if (data.qrCode) {
+      if (data.qrCode && data.conexao?.id) {
+        setQrCodeBase64(data.qrCode)
+        const conexaoId = data.conexao.id
+        toast.success('QR Code gerado! Escaneie com seu WhatsApp.')
+        pollingRef.current = setInterval(async () => {
+          try {
+            const statusData = await api.get<{ status: string }>(`/whatsapp/${conexaoId}/status`)
+            if (statusData.status === 'connected') {
+              if (pollingRef.current) clearInterval(pollingRef.current)
+              setQrCodeBase64(null)
+              setDialogOpen(false)
+              toast.success(`${nome} conectado com sucesso!`)
+              fetchConexoes()
+            }
+          } catch { /* continua polling */ }
+        }, 4000)
+      } else if (data.qrCode) {
         setQrCodeBase64(data.qrCode)
         toast.success('QR Code gerado! Escaneie com seu WhatsApp.')
         pollingRef.current = setInterval(() => fetchConexoes(nome), 4000)
