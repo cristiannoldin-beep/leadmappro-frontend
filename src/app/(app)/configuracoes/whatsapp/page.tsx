@@ -68,9 +68,25 @@ export default function ConexoesWhatsAppPage() {
 
   const fetchConexoes = (instanceNameAtivo?: string) => {
     api.get<{ conexoes: WhatsappConexao[] } | WhatsappConexao[]>('/whatsapp/conexoes')
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data as any).conexoes ?? []
-        setConexoes(list)
+      .then(async (data) => {
+        const list: WhatsappConexao[] = Array.isArray(data) ? data : (data as any).conexoes ?? []
+
+        // Sincroniza status real da UazAPI para instâncias não conectadas
+        const naoConectadas = list.filter(c => c.provider === 'uazapi' && !isConnected(c.status))
+        if (naoConectadas.length > 0) {
+          const synced = await Promise.allSettled(
+            naoConectadas.map(c => api.get<{ status: string }>(`/whatsapp/${c.id}/status`))
+          )
+          synced.forEach((result, i) => {
+            if (result.status === 'fulfilled') {
+              const c = naoConectadas[i]
+              const idx = list.findIndex(x => x.id === c.id)
+              if (idx !== -1) list[idx] = { ...list[idx], status: result.value.status }
+            }
+          })
+        }
+
+        setConexoes([...list])
 
         if (instanceNameAtivo) {
           const conectada = list.find(
