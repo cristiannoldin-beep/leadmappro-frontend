@@ -28,6 +28,7 @@ import {
   Phone,
   Clock,
   ArrowLeft,
+  QrCode,
 } from 'lucide-react'
 
 interface WhatsappConexao {
@@ -179,6 +180,13 @@ export default function ConexoesWhatsAppPage() {
     }
   }
 
+  const handleReconectar = (con: WhatsappConexao) => {
+    setInstanceName(con.instanceName ?? con.apelido ?? '')
+    setQrCodeBase64(null)
+    stopQrPolling()
+    setDialogOpen(true)
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja remover esta conexão?')) return
     try {
@@ -288,6 +296,16 @@ export default function ConexoesWhatsAppPage() {
                      <WifiOff className="h-3.5 w-3.5" />}
                     {getStatusLabel(con.status)}
                   </div>
+                  {!connected && con.provider === 'uazapi' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full h-8 text-xs gap-1.5"
+                      onClick={() => handleReconectar(con)}
+                    >
+                      <QrCode className="h-3.5 w-3.5" /> Reconectar
+                    </Button>
+                  )}
                   {createdAt && (
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Clock className="h-3 w-3" />
