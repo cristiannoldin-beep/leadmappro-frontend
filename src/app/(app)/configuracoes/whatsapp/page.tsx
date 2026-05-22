@@ -36,7 +36,7 @@ interface WhatsappConexao {
   apelido?: string
   numeroTelefone?: string
   instanceName?: string
-  provider: 'uazapi' | 'meta_official'
+  provider: 'uazapi' | 'meta_official' | 'evolution'
   status: string
   createdAt?: string
 }
@@ -60,6 +60,7 @@ export default function ConexoesWhatsAppPage() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [instanceName, setInstanceName] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState<'evolution' | 'uazapi'>('evolution')
   const [generatingQR, setGeneratingQR] = useState(false)
   const [qrCodeBase64, setQrCodeBase64] = useState<string | null>(null)
   const [waitingForQr, setWaitingForQr] = useState(false)
@@ -71,8 +72,8 @@ export default function ConexoesWhatsAppPage() {
       .then(async (data) => {
         const list: WhatsappConexao[] = Array.isArray(data) ? data : (data as any).conexoes ?? []
 
-        // Sincroniza status real da UazAPI para instâncias não conectadas
-        const naoConectadas = list.filter(c => c.provider === 'uazapi' && !isConnected(c.status))
+        // Sincroniza status real para instâncias UazAPI/Evolution não conectadas
+        const naoConectadas = list.filter(c => (c.provider === 'uazapi' || c.provider === 'evolution') && !isConnected(c.status))
         if (naoConectadas.length > 0) {
           const synced = await Promise.allSettled(
             naoConectadas.map(c => api.get<{ status: string }>(`/whatsapp/${c.id}/status`))
@@ -130,7 +131,7 @@ export default function ConexoesWhatsAppPage() {
     try {
       const data = await api.post<{ qrCode?: string; alreadyConnected?: boolean; conexao?: { id: string } }>('/whatsapp/conexoes', {
         instanceName: instanceName.trim(),
-        provider: 'uazapi',
+        provider: selectedProvider,
         apelido: instanceName.trim(),
       })
       if (data.alreadyConnected) {
@@ -177,7 +178,7 @@ export default function ConexoesWhatsAppPage() {
               pollingRef.current = setInterval(() => fetchConexoes(nome), 4000)
             } else if (attempts >= 10) {
               stopQrPolling()
-              toast.error('Tempo esgotado. Verifique a configuração do UazAPI.')
+              toast.error('Tempo esgotado. Verifique a configuração da API de WhatsApp.')
             }
           } catch { if (attempts >= 10) stopQrPolling() }
         }
@@ -198,6 +199,7 @@ export default function ConexoesWhatsAppPage() {
 
   const handleReconectar = (con: WhatsappConexao) => {
     setInstanceName(con.instanceName ?? con.apelido ?? '')
+    setSelectedProvider(con.provider === 'evolution' ? 'evolution' : 'uazapi')
     setQrCodeBase64(null)
     stopQrPolling()
     setDialogOpen(true)
@@ -234,7 +236,7 @@ export default function ConexoesWhatsAppPage() {
           </Button>
           <Button
             className="h-14 px-8 rounded-full font-bold gap-2"
-            onClick={() => { setQrCodeBase64(null); setInstanceName(''); setDialogOpen(true) }}
+            onClick={() => { setQrCodeBase64(null); setInstanceName(''); setSelectedProvider('evolution'); setDialogOpen(true) }}
           >
             <Plus className="h-5 w-5" /> Novo Canal
           </Button>
@@ -282,7 +284,7 @@ export default function ConexoesWhatsAppPage() {
                         <CardTitle className="text-base font-bold truncate">{con.apelido ?? 'Instância'}</CardTitle>
                       </div>
                       <Badge variant="outline" className="text-[10px] uppercase tracking-widest">
-                        {con.provider === 'meta_official' ? 'Meta Oficial' : 'Uazapi'}
+                        {con.provider === 'meta_official' ? 'Meta Oficial' : con.provider === 'evolution' ? 'Evolution' : 'Uazapi'}
                       </Badge>
                     </div>
                     <Button
@@ -312,7 +314,7 @@ export default function ConexoesWhatsAppPage() {
                      <WifiOff className="h-3.5 w-3.5" />}
                     {getStatusLabel(con.status)}
                   </div>
-                  {!connected && con.provider === 'uazapi' && (
+                  {!connected && (con.provider === 'uazapi' || con.provider === 'evolution') && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -338,22 +340,35 @@ export default function ConexoesWhatsAppPage() {
       {/* Add Connection Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(val) => {
         setDialogOpen(val)
-        if (!val) { setQrCodeBase64(null); setInstanceName(''); stopQrPolling() }
+        if (!val) { setQrCodeBase64(null); setInstanceName(''); setSelectedProvider('evolution'); stopQrPolling() }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Conectar WhatsApp</DialogTitle>
             <DialogDescription>
-              Adicione uma instância via QR Code (Uazapi)
+              Adicione uma instância via QR Code
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-muted/20">
-              <Smartphone className="h-5 w-5 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold">Conexão via QR Code (Uazapi)</p>
-                <p className="text-xs text-muted-foreground">Baseado em leitura de QR Code. O celular deve estar conectado.</p>
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedProvider('evolution')}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-left ${selectedProvider === 'evolution' ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-muted-foreground/40'}`}
+              >
+                <Smartphone className="h-5 w-5 text-primary" />
+                <span className="text-xs font-bold">Evolution API</span>
+                <span className="text-[10px] text-muted-foreground text-center leading-tight">Self-hosted, mais estável</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedProvider('uazapi')}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-left ${selectedProvider === 'uazapi' ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-muted-foreground/40'}`}
+              >
+                <Smartphone className="h-5 w-5 text-muted-foreground" />
+                <span className="text-xs font-bold">UazAPI</span>
+                <span className="text-[10px] text-muted-foreground text-center leading-tight">Legacy / migração</span>
+              </button>
             </div>
             {waitingForQr ? (
               <div className="flex flex-col items-center gap-4 py-4">
