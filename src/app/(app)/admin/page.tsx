@@ -68,6 +68,17 @@ interface Owner {
   nomeCompleto?: string | null
 }
 
+interface AdminLista {
+  id: string
+  nome: string
+  origem: string
+  segmento?: string | null
+  cidade?: string | null
+  estado?: string | null
+  dataCriacao: string
+  totalContatos: number
+}
+
 interface Account {
   id: string
   name: string
@@ -75,6 +86,7 @@ interface Account {
   status: string
   planId?: string | null
   plan?: Plan | null
+  trialEndsAt?: string | null
   createdAt: string
   owner?: Owner | null
   leadsCount: number
@@ -92,6 +104,7 @@ interface Stats {
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   active: { label: '✓ Ativo', className: 'bg-emerald-500/20 text-emerald-400' },
   trialing: { label: '⏱ Trial', className: 'bg-blue-500/20 text-blue-400' },
+  trial: { label: '⏱ Trial', className: 'bg-blue-500/20 text-blue-400' },
   past_due: { label: '⚠ Atrasado', className: 'bg-amber-500/20 text-amber-400' },
   suspended: { label: '✕ Suspenso', className: 'bg-red-500/20 text-red-400' },
 }
@@ -111,6 +124,8 @@ export default function AdminPage() {
   const [search, setSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
+  const [accountListas, setAccountListas] = useState<AdminLista[]>([])
+  const [loadingListas, setLoadingListas] = useState(false)
   const [novoClienteOpen, setNovoClienteOpen] = useState(false)
 
   useEffect(() => {
@@ -171,6 +186,20 @@ export default function AdminPage() {
       toast.error('Erro ao remover conta')
     }
   }
+
+  const openAccountSheet = useCallback(async (acc: Account) => {
+    setSelectedAccount(acc)
+    setAccountListas([])
+    setLoadingListas(true)
+    try {
+      const data = await api.get<{ listas: AdminLista[] }>(`/admin/accounts/${acc.id}/listas`)
+      setAccountListas(data.listas ?? [])
+    } catch {
+      setAccountListas([])
+    } finally {
+      setLoadingListas(false)
+    }
+  }, [])
 
   const filteredAccounts = accounts.filter((a) =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -273,7 +302,7 @@ export default function AdminPage() {
               ) : filteredAccounts.map((acc, idx) => (
                 <div key={acc.id} className={cn('grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-white/[0.02] transition-colors group', idx < filteredAccounts.length - 1 && 'border-b border-white/5')}>
                   {/* Client */}
-                  <div className="col-span-4 flex items-center gap-3 cursor-pointer" onClick={() => setSelectedAccount(acc)}>
+                  <div className="col-span-4 flex items-center gap-3 cursor-pointer" onClick={() => openAccountSheet(acc)}>
                     <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center font-black text-white text-sm shrink-0 group-hover:border-blue-500/50 transition-colors">
                       {acc.name.charAt(0).toUpperCase()}
                     </div>
@@ -444,6 +473,12 @@ export default function AdminPage() {
                   <p className="text-xs text-slate-500">Plano</p>
                   <span className="text-sm font-bold text-white">{selectedAccount?.plan?.name ?? 'Sem plano'}</span>
                 </div>
+                {selectedAccount?.trialEndsAt && (
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-slate-500">Trial até</p>
+                    <span className="text-sm font-medium text-blue-400">{new Date(selectedAccount.trialEndsAt).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <p className="text-xs text-slate-500">Cadastro</p>
                   <span className="text-sm font-medium text-white">{selectedAccount?.createdAt ? new Date(selectedAccount.createdAt).toLocaleDateString('pt-BR') : '-'}</span>
@@ -466,6 +501,34 @@ export default function AdminPage() {
                   <p className="text-lg font-black text-white">{selectedAccount?.campanhasCount ?? 0}</p>
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><List className="h-3 w-3" /> Listas</h4>
+              {loadingListas ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl bg-slate-800" />)}
+                </div>
+              ) : accountListas.length === 0 ? (
+                <p className="text-xs text-slate-600 py-4 text-center">Nenhuma lista criada.</p>
+              ) : (
+                <div className="space-y-2">
+                  {accountListas.map((lista) => (
+                    <div key={lista.id} className="bg-slate-900/50 rounded-xl p-3 border border-white/5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-bold text-white truncate">{lista.nome}</p>
+                        <span className="text-xs font-bold text-emerald-400 shrink-0">{lista.totalContatos} leads</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">{lista.origem.replace('_', ' ')}</span>
+                        {lista.segmento && <span className="text-[10px] text-slate-600">· {lista.segmento}</span>}
+                        {lista.cidade && <span className="text-[10px] text-slate-600">· {lista.cidade}/{lista.estado}</span>}
+                      </div>
+                      <p className="text-[10px] text-slate-700 mt-1">{new Date(lista.dataCriacao).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </SheetContent>
