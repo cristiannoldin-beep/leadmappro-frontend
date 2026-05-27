@@ -223,8 +223,8 @@ export default function AdminPage() {
     setListaContatos([])
     setLoadingContatos(true)
     try {
-      const data = await api.get<{ contatos: AdminContato[] }>(
-        `/admin/accounts/${selectedAccount.id}/listas/${lista.id}/contatos?limit=100`
+      const data = await api.get<{ contatos: AdminContato[]; total: number }>(
+        `/admin/accounts/${selectedAccount.id}/listas/${lista.id}/contatos?limit=500`
       )
       setListaContatos(data.contatos ?? [])
     } catch {
@@ -577,7 +577,10 @@ export default function AdminPage() {
           <DialogHeader>
             <DialogTitle className="text-white font-black">{selectedLista?.nome}</DialogTitle>
             <DialogDescription className="text-slate-400 text-xs">
-              {selectedLista?.origem.replace('_', ' ')} · {selectedLista?.segmento} · {selectedLista?.cidade}/{selectedLista?.estado} · {selectedLista?.totalContatos} leads
+              {selectedLista?.origem.replace(/_/g, ' ')}
+              {selectedLista?.segmento && ` · ${selectedLista.segmento}`}
+              {(selectedLista?.cidade || selectedLista?.estado) && ` · ${[selectedLista?.cidade, selectedLista?.estado].filter(Boolean).join('/')}`}
+              {' · '}{listaContatos.length > 0 && listaContatos.length < (selectedLista?.totalContatos ?? 0) ? `exibindo ${listaContatos.length} de ${selectedLista?.totalContatos}` : `${selectedLista?.totalContatos ?? 0}`} leads
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-auto flex-1 mt-2">
@@ -621,7 +624,7 @@ export default function AdminPage() {
                           'bg-amber-500/20 text-amber-400': c.statusNaLista === 'abordado',
                           'bg-red-500/20 text-red-400': c.statusNaLista === 'nao_interessado' || c.statusNaLista === 'nao_contatar',
                         })}>
-                          {c.statusNaLista.replace('_', ' ')}
+                          {c.statusNaLista.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="py-2 px-3 text-center">{c.mensagemEnviada ? <span className="text-emerald-400">✓</span> : <span className="text-slate-600">—</span>}</td>
