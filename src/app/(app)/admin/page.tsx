@@ -79,6 +79,19 @@ interface AdminLista {
   totalContatos: number
 }
 
+interface AdminContato {
+  id: string
+  nomeEmpresa: string
+  telefone: string
+  cidade?: string | null
+  estado?: string | null
+  atividade?: string | null
+  website?: string | null
+  statusWhatsapp: string
+  statusNaLista: string
+  mensagemEnviada: boolean
+}
+
 interface Account {
   id: string
   name: string
@@ -126,6 +139,9 @@ export default function AdminPage() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [accountListas, setAccountListas] = useState<AdminLista[]>([])
   const [loadingListas, setLoadingListas] = useState(false)
+  const [selectedLista, setSelectedLista] = useState<AdminLista | null>(null)
+  const [listaContatos, setListaContatos] = useState<AdminContato[]>([])
+  const [loadingContatos, setLoadingContatos] = useState(false)
   const [novoClienteOpen, setNovoClienteOpen] = useState(false)
 
   useEffect(() => {
@@ -200,6 +216,23 @@ export default function AdminPage() {
       setLoadingListas(false)
     }
   }, [])
+
+  const openListaContatos = useCallback(async (lista: AdminLista) => {
+    if (!selectedAccount) return
+    setSelectedLista(lista)
+    setListaContatos([])
+    setLoadingContatos(true)
+    try {
+      const data = await api.get<{ contatos: AdminContato[] }>(
+        `/admin/accounts/${selectedAccount.id}/listas/${lista.id}/contatos?limit=100`
+      )
+      setListaContatos(data.contatos ?? [])
+    } catch {
+      toast.error('Erro ao carregar contatos')
+    } finally {
+      setLoadingContatos(false)
+    }
+  }, [selectedAccount])
 
   const filteredAccounts = accounts.filter((a) =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -514,9 +547,13 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-2">
                   {accountListas.map((lista) => (
-                    <div key={lista.id} className="bg-slate-900/50 rounded-xl p-3 border border-white/5">
+                    <button
+                      key={lista.id}
+                      onClick={() => openListaContatos(lista)}
+                      className="w-full text-left bg-slate-900/50 rounded-xl p-3 border border-white/5 hover:border-blue-500/30 hover:bg-slate-800/50 transition-all group"
+                    >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-bold text-white truncate">{lista.nome}</p>
+                        <p className="text-sm font-bold text-white truncate group-hover:text-blue-300 transition-colors">{lista.nome}</p>
                         <span className="text-xs font-bold text-emerald-400 shrink-0">{lista.totalContatos} leads</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
@@ -525,7 +562,7 @@ export default function AdminPage() {
                         {lista.cidade && <span className="text-[10px] text-slate-600">· {lista.cidade}/{lista.estado}</span>}
                       </div>
                       <p className="text-[10px] text-slate-700 mt-1">{new Date(lista.dataCriacao).toLocaleDateString('pt-BR')}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -533,6 +570,69 @@ export default function AdminPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Dialog de contatos da lista */}
+      <Dialog open={!!selectedLista} onOpenChange={(open) => { if (!open) setSelectedLista(null) }}>
+        <DialogContent className="bg-slate-900 border border-white/10 text-white max-w-4xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-white font-black">{selectedLista?.nome}</DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs">
+              {selectedLista?.origem.replace('_', ' ')} · {selectedLista?.segmento} · {selectedLista?.cidade}/{selectedLista?.estado} · {selectedLista?.totalContatos} leads
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto flex-1 mt-2">
+            {loadingContatos ? (
+              <div className="space-y-2 p-2">
+                {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full rounded-lg bg-slate-800" />)}
+              </div>
+            ) : listaContatos.length === 0 ? (
+              <p className="text-center text-slate-600 text-sm py-8">Nenhum contato encontrado.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-white/5">
+                    <th className="text-left py-2 px-3 font-bold">Empresa</th>
+                    <th className="text-left py-2 px-3 font-bold">Telefone</th>
+                    <th className="text-left py-2 px-3 font-bold">Cidade</th>
+                    <th className="text-left py-2 px-3 font-bold">WhatsApp</th>
+                    <th className="text-left py-2 px-3 font-bold">Status</th>
+                    <th className="text-left py-2 px-3 font-bold">Enviado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaContatos.map((c) => (
+                    <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="py-2 px-3 font-medium text-white max-w-[180px] truncate">{c.nomeEmpresa}</td>
+                      <td className="py-2 px-3 text-slate-300 font-mono">{c.telefone}</td>
+                      <td className="py-2 px-3 text-slate-400">{c.cidade && c.estado ? `${c.cidade}/${c.estado}` : c.cidade ?? '-'}</td>
+                      <td className="py-2 px-3">
+                        <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-black uppercase', {
+                          'bg-emerald-500/20 text-emerald-400': c.statusWhatsapp === 'valido',
+                          'bg-red-500/20 text-red-400': c.statusWhatsapp === 'invalido',
+                          'bg-slate-700/50 text-slate-500': c.statusWhatsapp === 'nao_validado',
+                        })}>
+                          {c.statusWhatsapp === 'valido' ? '✓ Válido' : c.statusWhatsapp === 'invalido' ? '✕ Inválido' : '— Não validado'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-bold uppercase', {
+                          'bg-blue-500/20 text-blue-400': c.statusNaLista === 'interessado',
+                          'bg-slate-700/50 text-slate-500': c.statusNaLista === 'novo',
+                          'bg-amber-500/20 text-amber-400': c.statusNaLista === 'abordado',
+                          'bg-red-500/20 text-red-400': c.statusNaLista === 'nao_interessado' || c.statusNaLista === 'nao_contatar',
+                        })}>
+                          {c.statusNaLista.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-center">{c.mensagemEnviada ? <span className="text-emerald-400">✓</span> : <span className="text-slate-600">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Novo cliente modal */}
       <NovoClienteModal open={novoClienteOpen} onOpenChange={setNovoClienteOpen} onSuccess={fetchData} />
