@@ -8,18 +8,27 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import {
   Users,
   Target,
   TrendingUp,
-  ListChecks,
   Plus,
   ArrowRight,
   Sparkles,
   LayoutDashboard,
   MessageCircle,
   Send,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react'
+
+interface BillingInfo {
+  status: string
+  trialEndsAt: string | null
+  plano: { name: string; price: number } | null
+}
 
 interface DashboardStats {
   listas: number
@@ -42,6 +51,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [campanhasRecentes, setCampanhasRecentes] = useState<Campanha[]>([])
+  const [billing, setBilling] = useState<BillingInfo | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
   const [loadingCampanhas, setLoadingCampanhas] = useState(true)
 
@@ -57,6 +67,10 @@ export default function DashboardPage() {
       .then((data) => setCampanhasRecentes((data.campanhas ?? []).filter((c) => c.ativo).slice(0, 5)))
       .catch(() => setCampanhasRecentes([]))
       .finally(() => setLoadingCampanhas(false))
+  }, [])
+
+  useEffect(() => {
+    api.get<BillingInfo>('/billing/plano').then(setBilling).catch(() => null)
   }, [])
 
   const statsCards = [
@@ -118,24 +132,65 @@ export default function DashboardPage() {
     },
   ]
 
+  const daysLeft = billing?.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(billing.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null
+
   return (
-    <div className="container mx-auto p-6 md:p-10 space-y-10">
+    <div className="container mx-auto p-6 md:p-10 space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-emerald-500 mb-1">
             <LayoutDashboard className="h-4 w-4" />
             <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Dashboard Principal</span>
           </div>
-          <h1 className="text-4xl font-bold tracking-normal leading-tight">
+          <h1 className="text-3xl font-bold leading-tight">
             Olá, {user?.nomeCompleto?.split(' ')[0] ?? user?.email?.split('@')[0]}!
           </h1>
-          <p className="text-muted-foreground font-medium">Sua central de prospecção inteligente.</p>
+          <p className="text-muted-foreground text-sm">Sua central de prospecção inteligente.</p>
         </div>
-        <Badge variant="outline" className="h-8 px-4 bg-white/[0.04] border border-white/[0.08] font-bold text-muted-foreground rounded-full w-fit">
-          LeadMap Pro
-        </Badge>
       </div>
+
+      {/* Status da conta */}
+      {billing && billing.status === 'trialing' && daysLeft !== null && (
+        <div className={cn(
+          'flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border p-4',
+          daysLeft <= 3 ? 'bg-red-500/5 border-red-500/20' : daysLeft <= 7 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-blue-500/5 border-blue-500/20'
+        )}>
+          <div className="flex items-center gap-3">
+            {daysLeft <= 3
+              ? <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+              : daysLeft === 0
+              ? <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+              : <Clock className="h-5 w-5 text-blue-400 shrink-0" />}
+            <div>
+              <p className={cn('text-sm font-bold', daysLeft <= 3 ? 'text-red-400' : daysLeft <= 7 ? 'text-amber-400' : 'text-blue-400')}>
+                {daysLeft === 0 ? 'Trial encerrado' : `${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'} restantes no trial`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {daysLeft === 0 ? 'Assine um plano para continuar usando o LeadMap Pro.' : 'Explore todos os recursos. Assine antes que o trial acabe.'}
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" className="bg-primary hover:bg-primary/90 font-bold shrink-0">
+            <Link href="/meu-plano">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Ver planos
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {billing && billing.status === 'active' && (
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+          <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-emerald-400">Conta ativa — {billing.plano?.name ?? 'Sem plano'}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Todos os recursos disponíveis.</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">

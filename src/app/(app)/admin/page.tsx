@@ -143,6 +143,8 @@ export default function AdminPage() {
   const [listaContatos, setListaContatos] = useState<AdminContato[]>([])
   const [loadingContatos, setLoadingContatos] = useState(false)
   const [novoClienteOpen, setNovoClienteOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('todos')
+  const [sheetTab, setSheetTab] = useState<'geral' | 'listas'>('geral')
 
   useEffect(() => {
     if (!loading && user?.role !== 'admin') router.push('/dashboard')
@@ -205,6 +207,7 @@ export default function AdminPage() {
 
   const openAccountSheet = useCallback(async (acc: Account) => {
     setSelectedAccount(acc)
+    setSheetTab('geral')
     setAccountListas([])
     setLoadingListas(true)
     try {
@@ -234,10 +237,19 @@ export default function AdminPage() {
     }
   }, [selectedAccount])
 
-  const filteredAccounts = accounts.filter((a) =>
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
-    a.owner?.email?.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredAccounts = accounts.filter((a) => {
+    const matchSearch = a.name.toLowerCase().includes(search.toLowerCase()) ||
+      a.owner?.email?.toLowerCase().includes(search.toLowerCase())
+    const matchStatus = statusFilter === 'todos' || a.status === statusFilter
+    return matchSearch && matchStatus
+  })
+
+  const statusCounts = {
+    todos: accounts.length,
+    active: accounts.filter(a => a.status === 'active').length,
+    trialing: accounts.filter(a => a.status === 'trialing').length,
+    suspended: accounts.filter(a => a.status === 'suspended').length,
+  }
 
   const statCards = [
     { label: 'Clientes', value: stats?.total ?? accounts.length, icon: Users, light: 'bg-blue-500/10 text-blue-400', gradient: 'from-blue-500 to-blue-600' },
@@ -303,8 +315,31 @@ export default function AdminPage() {
         {/* CLIENTES TAB */}
         {activeTab === 'clientes' && (
           <div className="space-y-4">
+            {/* Filtros de status */}
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { key: 'todos', label: 'Todos' },
+                { key: 'active', label: '✓ Ativos' },
+                { key: 'trialing', label: '⏱ Trial' },
+                { key: 'suspended', label: '✕ Suspensos' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setStatusFilter(key)}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-xs font-bold border transition-all',
+                    statusFilter === key
+                      ? 'bg-white text-slate-900 border-white'
+                      : 'bg-transparent text-slate-400 border-white/10 hover:border-white/20 hover:text-white'
+                  )}
+                >
+                  {label} <span className="opacity-60 ml-1">{statusCounts[key]}</span>
+                </button>
+              ))}
+            </div>
+
             <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-400">{filteredAccounts.length} clientes cadastrados</span>
+              <span className="text-sm font-bold text-slate-400">{filteredAccounts.length} cliente{filteredAccounts.length !== 1 ? 's' : ''}</span>
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                 <Input
@@ -479,74 +514,123 @@ export default function AdminPage() {
               </div>
             </div>
           </SheetHeader>
-          <div className="p-6 overflow-y-auto flex-1 space-y-8">
-            <div className="space-y-3">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Users className="h-3 w-3" /> Contato</h4>
-              <div className="space-y-3 bg-slate-900/50 rounded-2xl p-4 border border-white/5">
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">Email</p>
-                  <p className="text-sm font-medium text-white">{selectedAccount?.owner?.email ?? 'Não informado'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">WhatsApp / Celular</p>
-                  <p className="text-sm font-medium text-white">{selectedAccount?.owner?.celular || 'Não informado'}</p>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Activity className="h-3 w-3" /> Assinatura & Atividade</h4>
-              <div className="space-y-3 bg-slate-900/50 rounded-2xl p-4 border border-white/5">
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-slate-500">Status</p>
-                  <Badge variant="outline" className={cn('text-[10px] uppercase font-black px-2 py-0.5', STATUS_CONFIG[selectedAccount?.status ?? '']?.className ?? 'text-slate-400')}>
-                    {selectedAccount?.status}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-slate-500">Plano</p>
-                  <span className="text-sm font-bold text-white">{selectedAccount?.plan?.name ?? 'Sem plano'}</span>
-                </div>
-                {selectedAccount?.trialEndsAt && (
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-slate-500">Trial até</p>
-                    <span className="text-sm font-medium text-blue-400">{new Date(selectedAccount.trialEndsAt).toLocaleDateString('pt-BR')}</span>
-                  </div>
+          {/* Sheet tabs */}
+          <div className="flex border-b border-white/5 bg-slate-900/30 px-6 shrink-0">
+            {(['geral', 'listas'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setSheetTab(tab)}
+                className={cn(
+                  'py-3 px-1 mr-5 text-xs font-bold border-b-2 transition-all capitalize',
+                  sheetTab === tab ? 'border-blue-500 text-white' : 'border-transparent text-slate-500 hover:text-slate-300'
                 )}
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-slate-500">Cadastro</p>
-                  <span className="text-sm font-medium text-white">{selectedAccount?.createdAt ? new Date(selectedAccount.createdAt).toLocaleDateString('pt-BR') : '-'}</span>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><BarChart3 className="h-3 w-3" /> Uso</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-900/50 rounded-xl p-3 border border-white/5">
-                  <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1.5"><UserPlus className="h-3 w-3 text-emerald-500" /> Leads</p>
-                  <p className="text-lg font-black text-white">{selectedAccount?.leadsCount ?? 0}</p>
-                </div>
-                <div className="bg-slate-900/50 rounded-xl p-3 border border-white/5">
-                  <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1.5"><Bot className="h-3 w-3 text-blue-500" /> Listas</p>
-                  <p className="text-lg font-black text-white">{selectedAccount?.listasCount ?? 0}</p>
-                </div>
-                <div className="bg-slate-900/50 rounded-xl p-3 border border-white/5 col-span-2">
-                  <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1.5"><Globe className="h-3 w-3 text-amber-500" /> Campanhas</p>
-                  <p className="text-lg font-black text-white">{selectedAccount?.campanhasCount ?? 0}</p>
-                </div>
-              </div>
-            </div>
+              >
+                {tab === 'geral' ? 'Visão Geral' : `Listas (${selectedAccount?.listasCount ?? 0})`}
+              </button>
+            ))}
+          </div>
 
-            <div className="space-y-3">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><List className="h-3 w-3" /> Listas</h4>
-              {loadingListas ? (
-                <div className="space-y-2">
-                  {[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl bg-slate-800" />)}
+          <div className="p-6 overflow-y-auto flex-1 space-y-6">
+            {sheetTab === 'geral' && (
+              <>
+                {/* Contato */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Users className="h-3 w-3" /> Contato</h4>
+                  <div className="space-y-3 bg-slate-900/50 rounded-2xl p-4 border border-white/5">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Email</p>
+                      <p className="text-sm font-medium text-white">{selectedAccount?.owner?.email ?? 'Não informado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">WhatsApp / Celular</p>
+                      <p className="text-sm font-medium text-white">{selectedAccount?.owner?.celular || 'Não informado'}</p>
+                    </div>
+                  </div>
                 </div>
-              ) : accountListas.length === 0 ? (
-                <p className="text-xs text-slate-600 py-4 text-center">Nenhuma lista criada.</p>
-              ) : (
+                {/* Assinatura */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Activity className="h-3 w-3" /> Assinatura & Atividade</h4>
+                  <div className="space-y-3 bg-slate-900/50 rounded-2xl p-4 border border-white/5">
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-slate-500">Status</p>
+                      <Badge variant="outline" className={cn('text-[10px] uppercase font-black px-2 py-0.5', STATUS_CONFIG[selectedAccount?.status ?? '']?.className ?? 'text-slate-400')}>
+                        {STATUS_CONFIG[selectedAccount?.status ?? '']?.label ?? selectedAccount?.status}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-slate-500">Plano</p>
+                      <span className="text-sm font-bold text-white">{selectedAccount?.plan?.name ?? 'Sem plano'}</span>
+                    </div>
+                    {selectedAccount?.trialEndsAt && (
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-slate-500">Trial até</p>
+                        <span className="text-sm font-medium text-blue-400">{new Date(selectedAccount.trialEndsAt).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-slate-500">Cadastro</p>
+                      <span className="text-sm font-medium text-white">{selectedAccount?.createdAt ? new Date(selectedAccount.createdAt).toLocaleDateString('pt-BR') : '-'}</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Uso */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><BarChart3 className="h-3 w-3" /> Uso</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-slate-900/50 rounded-xl p-3 border border-white/5 text-center">
+                      <p className="text-[10px] text-slate-500 mb-1">Leads</p>
+                      <p className="text-xl font-black text-white">{selectedAccount?.leadsCount ?? 0}</p>
+                    </div>
+                    <div className="bg-slate-900/50 rounded-xl p-3 border border-white/5 text-center">
+                      <p className="text-[10px] text-slate-500 mb-1">Listas</p>
+                      <p className="text-xl font-black text-white">{selectedAccount?.listasCount ?? 0}</p>
+                    </div>
+                    <div className="bg-slate-900/50 rounded-xl p-3 border border-white/5 text-center">
+                      <p className="text-[10px] text-slate-500 mb-1">Campanhas</p>
+                      <p className="text-xl font-black text-white">{selectedAccount?.campanhasCount ?? 0}</p>
+                    </div>
+                  </div>
+                </div>
+                {/* Ações rápidas */}
                 <div className="space-y-2">
-                  {accountListas.map((lista) => (
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Gerenciar</h4>
+                  <div className="flex gap-2 flex-wrap">
+                    <Select value={selectedAccount?.status} onValueChange={(v) => selectedAccount && updateStatus(selectedAccount.id, v)}>
+                      <SelectTrigger className="h-8 text-xs bg-slate-900 border-white/10 text-white rounded-xl w-auto px-3 gap-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/10 rounded-xl">
+                        <SelectItem value="active" className="text-emerald-400 font-bold text-xs">✓ Ativo</SelectItem>
+                        <SelectItem value="trialing" className="text-blue-400 font-bold text-xs">⏱ Trial</SelectItem>
+                        <SelectItem value="suspended" className="text-red-400 font-bold text-xs">✕ Suspenso</SelectItem>
+                        <SelectItem value="past_due" className="text-amber-400 font-bold text-xs">⚠ Atrasado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedAccount?.planId ?? 'none'} onValueChange={(v) => selectedAccount && updatePlan(selectedAccount.id, v)}>
+                      <SelectTrigger className="h-8 text-xs bg-slate-900 border-white/10 text-white rounded-xl w-auto px-3 gap-2">
+                        <SelectValue placeholder="Plano" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/10 rounded-xl">
+                        {plans.map((p) => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {sheetTab === 'listas' && (
+              <div className="space-y-3">
+                {loadingListas ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full rounded-xl bg-slate-800" />)}
+                  </div>
+                ) : accountListas.length === 0 ? (
+                  <p className="text-xs text-slate-600 py-8 text-center">Nenhuma lista criada.</p>
+                ) : (
+                  accountListas.map((lista) => (
                     <button
                       key={lista.id}
                       onClick={() => openListaContatos(lista)}
@@ -557,16 +641,16 @@ export default function AdminPage() {
                         <span className="text-xs font-bold text-emerald-400 shrink-0">{lista.totalContatos} leads</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold">{lista.origem.replace('_', ' ')}</span>
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">{lista.origem.replace(/_/g, ' ')}</span>
                         {lista.segmento && <span className="text-[10px] text-slate-600">· {lista.segmento}</span>}
-                        {lista.cidade && <span className="text-[10px] text-slate-600">· {lista.cidade}/{lista.estado}</span>}
+                        {(lista.cidade || lista.estado) && <span className="text-[10px] text-slate-600">· {[lista.cidade, lista.estado].filter(Boolean).join('/')}</span>}
                       </div>
                       <p className="text-[10px] text-slate-700 mt-1">{new Date(lista.dataCriacao).toLocaleDateString('pt-BR')}</p>
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
