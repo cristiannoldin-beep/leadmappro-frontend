@@ -54,7 +54,13 @@ import {
   Globe,
   List,
   Loader2,
+  Sun,
+  Moon,
+  Monitor,
+  CheckCircle2,
 } from 'lucide-react'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { useTheme } from 'next-themes'
 
 interface Plan {
   id: string
@@ -133,7 +139,8 @@ export default function AdminPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
-  const [activeTab, setActiveTab] = useState<'clientes' | 'planos'>('clientes')
+  const [activeTab, setActiveTab] = useState<'clientes' | 'planos' | 'tema'>('clientes')
+  const { theme, setTheme } = useTheme()
   const [search, setSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
@@ -302,12 +309,12 @@ export default function AdminPage() {
 
         {/* Tab switcher */}
         <div className="flex items-center gap-1 bg-slate-900 border border-white/5 rounded-2xl p-1 w-fit">
-          {(['clientes', 'planos'] as const).map((tab) => (
+          {(['clientes', 'planos', 'tema'] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={cn('px-5 py-2 rounded-xl text-sm font-bold capitalize transition-all',
                 activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'
               )}>
-              {tab === 'clientes' ? 'Clientes' : 'Planos & Limites'}
+              {tab === 'clientes' ? 'Clientes' : tab === 'planos' ? 'Planos & Limites' : 'Tema'}
             </button>
           ))}
         </div>
@@ -456,6 +463,71 @@ export default function AdminPage() {
                   <p className="text-slate-500 font-medium">Nenhum cliente encontrado</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TEMA TAB */}
+        {activeTab === 'tema' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h2 className="text-lg font-black text-white">Configuração de Tema</h2>
+              <p className="text-sm text-slate-400 mt-1">Controle como a interface é exibida para você e defina o padrão da plataforma.</p>
+            </div>
+
+            {/* Tema ativo */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tema ativo</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'light',  label: 'Claro',   Icon: Sun,     desc: 'Fundo branco, ideal para ambientes iluminados' },
+                  { value: 'system', label: 'Sistema',  Icon: Monitor, desc: 'Segue a preferência do sistema operacional' },
+                  { value: 'dark',   label: 'Escuro',  Icon: Moon,    desc: 'Fundo escuro, ideal para uso prolongado' },
+                ] as const).map(({ value, label, Icon, desc }) => {
+                  const isActive = theme === value
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setTheme(value)}
+                      className={cn(
+                        'relative flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all',
+                        isActive
+                          ? 'border-blue-500 bg-blue-600/10'
+                          : 'border-white/10 bg-slate-900 hover:border-white/20 hover:bg-slate-800/50'
+                      )}
+                    >
+                      {isActive && (
+                        <CheckCircle2 className="absolute right-3 top-3 h-4 w-4 text-blue-400" />
+                      )}
+                      <div className={cn(
+                        'flex h-9 w-9 items-center justify-center rounded-xl',
+                        isActive ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-400'
+                      )}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className={cn('text-sm font-bold', isActive ? 'text-blue-300' : 'text-white')}>{label}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{desc}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Mini preview */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Toggle rápido</p>
+              <div className="flex items-center gap-3">
+                <ThemeToggle />
+                <span className="text-xs text-slate-500">Alterna entre os modos diretamente</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/5 bg-slate-900/50 p-4">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                <span className="font-bold text-slate-400">Nota:</span> A preferência de tema é salva localmente por sessão. Para definir o padrão global da plataforma para novos usuários, configure a chave <code className="text-blue-400 text-[11px]">NEXT_PUBLIC_DEFAULT_THEME</code> nas variáveis de ambiente do deploy.
+              </p>
             </div>
           </div>
         )}

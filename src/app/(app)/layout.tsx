@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -402,6 +403,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <Link href="/meu-plano">Assinar plano</Link>
               </Button>
             )}
+
+            {/* Theme toggle */}
+            <ThemeToggle className="hidden sm:flex" />
 
             {/* Notifications placeholder */}
             <Tooltip>
