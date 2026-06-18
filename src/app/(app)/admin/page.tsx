@@ -479,7 +479,7 @@ export default function AdminPage() {
             <div className="space-y-3">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tema ativo</p>
               <div className="grid grid-cols-3 gap-3">
-                {[
+                {([
                   { value: 'light',  label: 'Claro',   Icon: Sun,     desc: 'Fundo branco, ideal para ambientes iluminados' },
                   { value: 'system', label: 'Sistema',  Icon: Monitor, desc: 'Segue a preferência do sistema operacional' },
                   { value: 'dark',   label: 'Escuro',  Icon: Moon,    desc: 'Fundo escuro, ideal para uso prolongado' },
