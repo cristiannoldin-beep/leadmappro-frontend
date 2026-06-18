@@ -34,11 +34,14 @@ interface Contato {
   id: string
   nome_empresa: string
   telefone?: string
-  status_whatsapp?: string
-  status?: string
-  website?: string
+  endereco?: string
   cidade?: string
   estado?: string
+  cnpj?: string
+  atividade?: string
+  website?: string
+  status_whatsapp?: string
+  status?: string
 }
 
 function WhatsappBadge({ status }: { status?: string }) {
@@ -57,6 +60,8 @@ export default function ListaResultadosPage() {
   const [loadingLista, setLoadingLista] = useState(true)
   const [loadingContatos, setLoadingContatos] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [filtroWhatsapp, setFiltroWhatsapp] = useState<'todos' | 'valido' | 'nao_validado' | 'invalido'>('todos')
+  const [filtroSite, setFiltroSite] = useState<'todos' | 'com_site' | 'sem_site'>('todos')
 
   // Estados de prospecção
   const [variacoes, setVariacoes] = useState<string[]>([])
@@ -76,10 +81,13 @@ export default function ListaResultadosPage() {
           id: lc.contato_id ?? lc.id,
           nome_empresa: lc.contatos?.nome_empresa ?? lc.nome_empresa ?? '',
           telefone: lc.contatos?.telefone ?? lc.telefone,
-          status_whatsapp: lc.status_whatsapp,
-          website: lc.contatos?.website ?? lc.website,
+          endereco: lc.contatos?.endereco ?? lc.endereco,
           cidade: lc.contatos?.cidade ?? lc.cidade,
           estado: lc.contatos?.estado ?? lc.estado,
+          cnpj: lc.contatos?.cnpj ?? lc.cnpj,
+          atividade: lc.contatos?.atividade ?? lc.atividade,
+          website: lc.contatos?.website ?? lc.website,
+          status_whatsapp: lc.status_whatsapp,
           status: lc.status,
         }))
         setContatos(mapped)
@@ -196,10 +204,15 @@ export default function ListaResultadosPage() {
     toast.success('CSV exportado!')
   }
 
-  const filtered = contatos.filter(c =>
-    c.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.telefone?.includes(searchTerm)
-  )
+  const filtered = contatos.filter(c => {
+    if (searchTerm && !c.nome_empresa?.toLowerCase().includes(searchTerm.toLowerCase()) && !c.telefone?.includes(searchTerm)) return false
+    if (filtroWhatsapp === 'valido' && c.status_whatsapp !== 'valido') return false
+    if (filtroWhatsapp === 'invalido' && c.status_whatsapp !== 'invalido') return false
+    if (filtroWhatsapp === 'nao_validado' && c.status_whatsapp && c.status_whatsapp !== 'nao_validado') return false
+    if (filtroSite === 'com_site' && !c.website) return false
+    if (filtroSite === 'sem_site' && c.website) return false
+    return true
+  })
 
   const isGoogleMaps = lista?.origem === 'google_maps'
   const queriesUsadas = lista?.googleQueriesUsadas?.length ?? 0
@@ -308,27 +321,63 @@ export default function ListaResultadosPage() {
         </Button>
       </div>
 
+      {/* Chips de filtro */}
+      <div className="flex flex-wrap gap-2">
+        {(['todos', 'valido', 'nao_validado', 'invalido'] as const).map(v => (
+          <button
+            key={v}
+            onClick={() => setFiltroWhatsapp(v)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filtroWhatsapp === v ? 'bg-green-500/20 text-green-500 border-green-500/40' : 'border-border text-muted-foreground hover:border-foreground/30'}`}
+          >
+            {v === 'todos' ? 'Todos' : v === 'valido' ? '✓ WhatsApp válido' : v === 'nao_validado' ? 'Não validado' : '✗ WhatsApp inválido'}
+          </button>
+        ))}
+        <div className="w-px bg-border mx-1" />
+        {(['todos', 'com_site', 'sem_site'] as const).map(v => (
+          <button
+            key={v}
+            onClick={() => setFiltroSite(v)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filtroSite === v ? 'bg-blue-500/20 text-blue-500 border-blue-500/40' : 'border-border text-muted-foreground hover:border-foreground/30'}`}
+          >
+            {v === 'todos' ? 'Todos os sites' : v === 'com_site' ? 'Com site' : 'Sem site'}
+          </button>
+        ))}
+      </div>
+
       {/* Tabela */}
       <div className="rounded-lg border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Empresa</TableHead>
+              <TableHead>Endereço</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>WhatsApp</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>CNPJ</TableHead>
               <TableHead>Website</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingContatos ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>
+                <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>
               ))
             ) : filtered.length > 0 ? (
               filtered.map(c => (
                 <TableRow key={c.id} className="hover:bg-muted/30">
-                  <TableCell className="font-medium">{c.nome_empresa}</TableCell>
+                  <TableCell className="font-medium max-w-[200px]">
+                    <div>{c.nome_empresa}</div>
+                    {c.atividade && <div className="text-xs text-muted-foreground truncate">{c.atividade}</div>}
+                  </TableCell>
+                  <TableCell className="max-w-[220px]">
+                    <div className="text-sm leading-snug">
+                      {c.endereco && <div className="truncate">{c.endereco}</div>}
+                      {(c.cidade || c.estado) && (
+                        <div className="text-xs text-muted-foreground">{[c.cidade, c.estado].filter(Boolean).join(' / ')}</div>
+                      )}
+                      {!c.endereco && !c.cidade && <span className="text-muted-foreground text-xs">-</span>}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <Phone className="h-3 w-3 text-muted-foreground" />
@@ -336,12 +385,14 @@ export default function ListaResultadosPage() {
                     </div>
                   </TableCell>
                   <TableCell><WhatsappBadge status={c.status_whatsapp} /></TableCell>
-                  <TableCell><Badge variant="outline" className="text-xs">{c.status ?? 'novo'}</Badge></TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground font-mono">{c.cnpj ?? '-'}</span>
+                  </TableCell>
                   <TableCell>
                     {c.website ? (
                       <a href={c.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline text-sm">
                         <Globe className="h-3 w-3" />
-                        <span className="max-w-[150px] truncate">{c.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+                        <span className="max-w-[140px] truncate">{c.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
                       </a>
                     ) : <span className="text-muted-foreground text-sm">-</span>}
                   </TableCell>
@@ -349,7 +400,7 @@ export default function ListaResultadosPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12">
+                <TableCell colSpan={6} className="text-center py-12">
                   <div className="space-y-2">
                     <Search className="h-8 w-8 text-muted-foreground mx-auto" />
                     <p className="text-muted-foreground text-sm">
