@@ -14,9 +14,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   ArrowLeft, FileSpreadsheet, Search, Phone, Globe,
   Users, MapPin, Loader2, Play, RefreshCw,
-  CheckCircle2, MessageCircle,
+  CheckCircle2, MessageCircle, Sparkles, ChevronDown, UserPlus,
 } from 'lucide-react'
 
 interface Lista {
@@ -191,6 +197,34 @@ export default function ListaResultadosPage() {
     }
   }
 
+  const handleRevalidarTudo = async () => {
+    setValidando(true)
+    try {
+      let remaining = contatos.length
+      let totalValidos = 0
+      while (remaining > 0) {
+        const result = await api.post<{ validos: number; hasMore: boolean; remaining: number }>(
+          '/prospeccao/validar-whatsapp',
+          { listaId: id, limit: 20, force: true }
+        )
+        totalValidos += result.validos
+        remaining = result.remaining
+        fetchContatos()
+        if (!result.hasMore) break
+        await new Promise(r => setTimeout(r, 1000))
+      }
+      toast.success(`Revalidação concluída! ${totalValidos} WhatsApps válidos encontrados.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro na revalidação.')
+    } finally {
+      setValidando(false)
+    }
+  }
+
+  const handleEnriquecerDados = () => {
+    toast.info('Enriquecimento de dados em breve. Integração com BrasilAPI + LeadCNPJ sendo implementada.')
+  }
+
   const handleExportCSV = () => {
     if (contatos.length === 0) { toast.error('Nenhum contato para exportar.'); return }
     const headers = ['Empresa', 'Telefone', 'WhatsApp', 'Cidade', 'Estado', 'Website']
@@ -310,38 +344,70 @@ export default function ListaResultadosPage() {
         </div>
       )}
 
-      {/* Filtro + Export */}
+      {/* Barra de busca + filtros (linha 1) */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Buscar por empresa ou telefone…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
         </div>
-        <Button variant="outline" onClick={handleExportCSV} disabled={contatos.length === 0}>
-          <FileSpreadsheet className="mr-2 h-4 w-4" /> Exportar CSV
-        </Button>
+        <Select value={filtroWhatsapp} onValueChange={v => setFiltroWhatsapp(v as typeof filtroWhatsapp)}>
+          <SelectTrigger className="w-[170px]">
+            <SelectValue placeholder="Todos WhatsApp" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos WhatsApp</SelectItem>
+            <SelectItem value="valido">✓ WhatsApp válido</SelectItem>
+            <SelectItem value="nao_validado">Não validado</SelectItem>
+            <SelectItem value="invalido">✗ Inválido</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroSite} onValueChange={v => setFiltroSite(v as typeof filtroSite)}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Todos Sites" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos Sites</SelectItem>
+            <SelectItem value="com_site">Com site</SelectItem>
+            <SelectItem value="sem_site">Sem site</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Chips de filtro */}
+      {/* Barra de ações (linha 2) */}
       <div className="flex flex-wrap gap-2">
-        {(['todos', 'valido', 'nao_validado', 'invalido'] as const).map(v => (
-          <button
-            key={v}
-            onClick={() => setFiltroWhatsapp(v)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filtroWhatsapp === v ? 'bg-green-500/20 text-green-500 border-green-500/40' : 'border-border text-muted-foreground hover:border-foreground/30'}`}
-          >
-            {v === 'todos' ? 'Todos' : v === 'valido' ? '✓ WhatsApp válido' : v === 'nao_validado' ? 'Não validado' : '✗ WhatsApp inválido'}
-          </button>
-        ))}
-        <div className="w-px bg-border mx-1" />
-        {(['todos', 'com_site', 'sem_site'] as const).map(v => (
-          <button
-            key={v}
-            onClick={() => setFiltroSite(v)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filtroSite === v ? 'bg-blue-500/20 text-blue-500 border-blue-500/40' : 'border-border text-muted-foreground hover:border-foreground/30'}`}
-          >
-            {v === 'todos' ? 'Todos os sites' : v === 'com_site' ? 'Com site' : 'Sem site'}
-          </button>
-        ))}
+        <Button onClick={() => { fetchContatos(); fetchLista() }} variant="outline" className="gap-2">
+          <RefreshCw className="h-4 w-4" /> Atualizar Lista
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button disabled={validando || contatos.length === 0} className="gap-2 bg-green-600 hover:bg-green-700 text-white">
+              {validando ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+              {validando ? 'Validando…' : `Validar WhatsApp`}
+              <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={handleValidarWhatsApp} disabled={naoValidadosCount === 0}>
+              Validar não validados ({naoValidadosCount})
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRevalidarTudo}>
+              Revalidar todos ({contatos.length})
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button variant="outline" onClick={handleExportCSV} disabled={contatos.length === 0} className="gap-2">
+          <FileSpreadsheet className="h-4 w-4" /> Exportar Planilha
+        </Button>
+
+        <Button variant="outline" onClick={handleEnriquecerDados} disabled={contatos.length === 0} className="gap-2">
+          <Sparkles className="h-4 w-4" /> Enriquecer Dados
+        </Button>
+
+        <Button variant="outline" disabled className="gap-2 opacity-50">
+          <UserPlus className="h-4 w-4" /> Prospectar Clientes
+        </Button>
       </div>
 
       {/* Tabela */}
