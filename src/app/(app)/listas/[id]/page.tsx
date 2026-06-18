@@ -22,7 +22,8 @@ import {
 import {
   ArrowLeft, FileSpreadsheet, Search, Phone, Globe,
   Users, MapPin, Loader2, Play, RefreshCw,
-  CheckCircle2, MessageCircle, Sparkles, ChevronDown, UserPlus,
+  CheckCircle2, MessageCircle, Sparkles, ChevronDown, UserPlus, Mail,
+  Instagram, Linkedin,
 } from 'lucide-react'
 
 interface Lista {
@@ -46,6 +47,10 @@ interface Contato {
   cnpj?: string
   atividade?: string
   website?: string
+  email?: string
+  instagram?: string
+  linkedin?: string
+  enriquecido_em?: string
   status_whatsapp?: string
   status?: string
 }
@@ -68,6 +73,7 @@ export default function ListaResultadosPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroWhatsapp, setFiltroWhatsapp] = useState<'todos' | 'valido' | 'nao_validado' | 'invalido'>('todos')
   const [filtroSite, setFiltroSite] = useState<'todos' | 'com_site' | 'sem_site'>('todos')
+  const [filtroEnriquecido, setFiltroEnriquecido] = useState<'todos' | 'enriquecido' | 'nao_enriquecido'>('todos')
 
   // Estados de prospecção
   const [variacoes, setVariacoes] = useState<string[]>([])
@@ -75,13 +81,13 @@ export default function ListaResultadosPage() {
   const [buscaProgress, setBuscaProgress] = useState(0)
   const [buscaStatus, setBuscaStatus] = useState('')
   const [validando, setValidando] = useState(false)
+  const [enriquecendo, setEnriquecendo] = useState(false)
   const [queryManual, setQueryManual] = useState('')
 
   const fetchContatos = useCallback(() => {
     setLoadingContatos(true)
     api.get<{ contatos: unknown[]; total: number }>(`/listas/${id}/contatos?page=1&limit=200`)
       .then((data) => {
-        // A API retorna cada item como ListaContato com o contato aninhado em `.contatos`
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mapped: Contato[] = (data.contatos ?? []).map((lc: any) => ({
           id: lc.contato_id ?? lc.id,
@@ -93,6 +99,10 @@ export default function ListaResultadosPage() {
           cnpj: lc.contatos?.cnpj ?? lc.cnpj,
           atividade: lc.contatos?.atividade ?? lc.atividade,
           website: lc.contatos?.website ?? lc.website,
+          email: lc.contatos?.email ?? lc.email,
+          instagram: lc.contatos?.instagram ?? lc.instagram,
+          linkedin: lc.contatos?.linkedin ?? lc.linkedin,
+          enriquecido_em: lc.contatos?.enriquecido_em ?? lc.enriquecido_em,
           status_whatsapp: lc.status_whatsapp,
           status: lc.status,
         }))
@@ -117,7 +127,7 @@ export default function ListaResultadosPage() {
   useEffect(() => { fetchLista() }, [fetchLista])
   useEffect(() => { fetchContatos() }, [fetchContatos])
 
-  // Buscar no Google Maps — gera variações automaticamente (até 15) se não existirem
+  // Buscar no Google Maps
   const handleBuscar = async () => {
     const segmento = lista?.segmento || queryManual.trim()
     if (variacoes.length === 0 && !segmento) {
@@ -221,14 +231,43 @@ export default function ListaResultadosPage() {
     }
   }
 
-  const handleEnriquecerDados = () => {
-    toast.info('Enriquecimento de dados em breve. Integração com BrasilAPI + LeadCNPJ sendo implementada.')
+  // Enriquecer Dados — scraping de email, Instagram, LinkedIn pelo website
+  const handleEnriquecerDados = async (force = false) => {
+    const comSite = contatos.filter(c => c.website && (force || !c.enriquecido_em)).length
+    if (comSite === 0) {
+      toast.info(force ? 'Nenhum contato com site para re-enriquecer.' : 'Todos os contatos com site já foram enriquecidos.')
+      return
+    }
+    setEnriquecendo(true)
+    try {
+      let hasMore = true
+      let totalEnriquecidos = 0
+      while (hasMore) {
+        const result = await api.post<{ enriquecidos: number; hasMore: boolean; restantes: number }>(
+          `/listas/${id}/enriquecer`,
+          { limit: 10, force }
+        )
+        totalEnriquecidos += result.enriquecidos
+        hasMore = result.hasMore
+        fetchContatos()
+        if (hasMore) await new Promise(r => setTimeout(r, 1000))
+      }
+      toast.success(`Enriquecimento concluído! ${totalEnriquecidos} empresas com novos dados.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro no enriquecimento.')
+    } finally {
+      setEnriquecendo(false)
+    }
   }
 
   const handleExportCSV = () => {
     if (contatos.length === 0) { toast.error('Nenhum contato para exportar.'); return }
-    const headers = ['Empresa', 'Telefone', 'WhatsApp', 'Cidade', 'Estado', 'Website']
-    const rows = contatos.map(c => [c.nome_empresa ?? '', c.telefone ?? '', c.status_whatsapp ?? '', c.cidade ?? '', c.estado ?? '', c.website ?? ''])
+    const headers = ['Empresa', 'Telefone', 'WhatsApp', 'Email', 'CNPJ', 'Cidade', 'Estado', 'Website', 'Instagram', 'LinkedIn']
+    const rows = contatos.map(c => [
+      c.nome_empresa ?? '', c.telefone ?? '', c.status_whatsapp ?? '',
+      c.email ?? '', c.cnpj ?? '', c.cidade ?? '', c.estado ?? '',
+      c.website ?? '', c.instagram ?? '', c.linkedin ?? '',
+    ])
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -245,6 +284,8 @@ export default function ListaResultadosPage() {
     if (filtroWhatsapp === 'nao_validado' && c.status_whatsapp && c.status_whatsapp !== 'nao_validado') return false
     if (filtroSite === 'com_site' && !c.website) return false
     if (filtroSite === 'sem_site' && c.website) return false
+    if (filtroEnriquecido === 'enriquecido' && !c.enriquecido_em) return false
+    if (filtroEnriquecido === 'nao_enriquecido' && c.enriquecido_em) return false
     return true
   })
 
@@ -252,6 +293,8 @@ export default function ListaResultadosPage() {
   const queriesUsadas = lista?.googleQueriesUsadas?.length ?? 0
   const validosCount = contatos.filter(c => c.status_whatsapp === 'valido').length
   const naoValidadosCount = contatos.filter(c => !c.status_whatsapp || c.status_whatsapp === 'nao_validado').length
+  const enriquecidosCount = contatos.filter(c => c.enriquecido_em).length
+  const comSiteNaoEnriquecido = contatos.filter(c => c.website && !c.enriquecido_em).length
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
@@ -289,6 +332,13 @@ export default function ListaResultadosPage() {
             <span className="text-xl font-bold text-green-500">{validosCount}</span>
             <span className="text-sm text-muted-foreground">WhatsApp Válidos</span>
           </div>
+          {enriquecidosCount > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              <span className="text-xl font-bold text-purple-500">{enriquecidosCount}</span>
+              <span className="text-sm text-muted-foreground">Enriquecidos</span>
+            </div>
+          )}
           {isGoogleMaps && queriesUsadas > 0 && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border">
               <CheckCircle2 className="h-4 w-4 text-blue-500" />
@@ -327,7 +377,6 @@ export default function ListaResultadosPage() {
 
             {buscando && <Progress value={buscaProgress} className="h-1.5" />}
 
-            {/* Chips das variações já geradas */}
             {variacoes.length > 0 && !buscando && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {variacoes.map((v, i) => {
@@ -344,7 +393,7 @@ export default function ListaResultadosPage() {
         </div>
       )}
 
-      {/* Barra de busca + filtros (linha 1) */}
+      {/* Barra de busca + filtros */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -362,7 +411,7 @@ export default function ListaResultadosPage() {
           </SelectContent>
         </Select>
         <Select value={filtroSite} onValueChange={v => setFiltroSite(v as typeof filtroSite)}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-[130px]">
             <SelectValue placeholder="Todos Sites" />
           </SelectTrigger>
           <SelectContent>
@@ -371,9 +420,19 @@ export default function ListaResultadosPage() {
             <SelectItem value="sem_site">Sem site</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={filtroEnriquecido} onValueChange={v => setFiltroEnriquecido(v as typeof filtroEnriquecido)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Enriquecimento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="enriquecido">Enriquecidos</SelectItem>
+            <SelectItem value="nao_enriquecido">Não enriquecidos</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Barra de ações (linha 2) */}
+      {/* Barra de ações */}
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => { fetchContatos(); fetchLista() }} variant="outline" className="gap-2">
           <RefreshCw className="h-4 w-4" /> Atualizar Lista
@@ -383,7 +442,7 @@ export default function ListaResultadosPage() {
           <DropdownMenuTrigger asChild>
             <Button disabled={validando || contatos.length === 0} className="gap-2 bg-green-600 hover:bg-green-700 text-white">
               {validando ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-              {validando ? 'Validando…' : `Validar WhatsApp`}
+              {validando ? 'Validando…' : 'Validar WhatsApp'}
               <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
@@ -401,9 +460,27 @@ export default function ListaResultadosPage() {
           <FileSpreadsheet className="h-4 w-4" /> Exportar Planilha
         </Button>
 
-        <Button variant="outline" onClick={handleEnriquecerDados} disabled={contatos.length === 0} className="gap-2">
-          <Sparkles className="h-4 w-4" /> Enriquecer Dados
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              disabled={enriquecendo || contatos.length === 0}
+              className="gap-2 border-purple-500/40 text-purple-600 hover:bg-purple-500/10"
+            >
+              {enriquecendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {enriquecendo ? 'Enriquecendo…' : `Enriquecer Dados`}
+              <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => handleEnriquecerDados(false)} disabled={comSiteNaoEnriquecido === 0}>
+              Enriquecer novos com site ({comSiteNaoEnriquecido})
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleEnriquecerDados(true)}>
+              Re-enriquecer todos com site ({contatos.filter(c => c.website).length})
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Button variant="outline" disabled className="gap-2 opacity-50">
           <UserPlus className="h-4 w-4" /> Prospectar Clientes
@@ -419,23 +496,31 @@ export default function ListaResultadosPage() {
               <TableHead>Endereço</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>WhatsApp</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>CNPJ</TableHead>
-              <TableHead>Website</TableHead>
+              <TableHead>Site / Social</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingContatos ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>
+                <TableRow key={i}>{Array.from({ length: 7 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>
               ))
             ) : filtered.length > 0 ? (
               filtered.map(c => (
                 <TableRow key={c.id} className="hover:bg-muted/30">
                   <TableCell className="font-medium max-w-[200px]">
-                    <div>{c.nome_empresa}</div>
-                    {c.atividade && <div className="text-xs text-muted-foreground truncate">{c.atividade}</div>}
+                    <div className="flex items-start gap-1.5">
+                      <div>
+                        <div>{c.nome_empresa}</div>
+                        {c.atividade && <div className="text-xs text-muted-foreground truncate">{c.atividade}</div>}
+                      </div>
+                      {c.enriquecido_em && (
+                        <span title="Dados enriquecidos"><Sparkles className="h-3 w-3 text-purple-400 shrink-0 mt-0.5" /></span>
+                      )}
+                    </div>
                   </TableCell>
-                  <TableCell className="max-w-[220px]">
+                  <TableCell className="max-w-[200px]">
                     <div className="text-sm leading-snug">
                       {c.endereco && <div className="truncate">{c.endereco}</div>}
                       {(c.cidade || c.estado) && (
@@ -451,22 +536,44 @@ export default function ListaResultadosPage() {
                     </div>
                   </TableCell>
                   <TableCell><WhatsappBadge status={c.status_whatsapp} /></TableCell>
+                  <TableCell className="max-w-[180px]">
+                    {c.email ? (
+                      <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-primary hover:underline text-sm">
+                        <Mail className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{c.email}</span>
+                      </a>
+                    ) : <span className="text-muted-foreground text-sm">-</span>}
+                  </TableCell>
                   <TableCell>
                     <span className="text-xs text-muted-foreground font-mono">{c.cnpj ?? '-'}</span>
                   </TableCell>
-                  <TableCell>
-                    {c.website ? (
-                      <a href={c.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline text-sm">
-                        <Globe className="h-3 w-3" />
-                        <span className="max-w-[140px] truncate">{c.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
-                      </a>
-                    ) : <span className="text-muted-foreground text-sm">-</span>}
+                  <TableCell className="max-w-[160px]">
+                    <div className="space-y-1">
+                      {c.website ? (
+                        <a href={c.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline text-sm">
+                          <Globe className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{c.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+                        </a>
+                      ) : <span className="text-muted-foreground text-sm">-</span>}
+                      <div className="flex gap-2">
+                        {c.instagram && (
+                          <a href={c.instagram} target="_blank" rel="noopener noreferrer" title="Instagram" className="text-pink-500 hover:text-pink-400">
+                            <Instagram className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        {c.linkedin && (
+                          <a href={c.linkedin} target="_blank" rel="noopener noreferrer" title="LinkedIn" className="text-blue-600 hover:text-blue-500">
+                            <Linkedin className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <div className="space-y-2">
                     <Search className="h-8 w-8 text-muted-foreground mx-auto" />
                     <p className="text-muted-foreground text-sm">
