@@ -68,8 +68,22 @@ export default function ListaResultadosPage() {
 
   const fetchContatos = useCallback(() => {
     setLoadingContatos(true)
-    api.get<{ contatos: Contato[]; total: number }>(`/listas/${id}/contatos?page=1&limit=200`)
-      .then((data) => setContatos(data.contatos ?? []))
+    api.get<{ contatos: unknown[]; total: number }>(`/listas/${id}/contatos?page=1&limit=200`)
+      .then((data) => {
+        // A API retorna cada item como ListaContato com o contato aninhado em `.contatos`
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Contato[] = (data.contatos ?? []).map((lc: any) => ({
+          id: lc.contato_id ?? lc.id,
+          nome_empresa: lc.contatos?.nome_empresa ?? lc.nome_empresa ?? '',
+          telefone: lc.contatos?.telefone ?? lc.telefone,
+          status_whatsapp: lc.status_whatsapp,
+          website: lc.contatos?.website ?? lc.website,
+          cidade: lc.contatos?.cidade ?? lc.cidade,
+          estado: lc.contatos?.estado ?? lc.estado,
+          status: lc.status,
+        }))
+        setContatos(mapped)
+      })
       .catch(() => setContatos([]))
       .finally(() => setLoadingContatos(false))
   }, [id])
