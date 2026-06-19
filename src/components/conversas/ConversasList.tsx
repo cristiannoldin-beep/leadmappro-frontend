@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Plus, WifiOff, Loader2, RefreshCw } from 'lucide-react'
+import { Search, Plus, WifiOff, Loader2, RefreshCw, DownloadCloud } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, isToday, isYesterday } from 'date-fns'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -54,6 +54,7 @@ export function ConversasList({ selectedContatoId, onSelectContato }: ConversasL
   const [showNewChat, setShowNewChat] = useState(false)
   const [newNumber, setNewNumber] = useState('')
   const [creating, setCreating] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const fetchConversas = useCallback(async () => {
     try {
@@ -80,6 +81,19 @@ export function ConversasList({ selectedContatoId, onSelectContato }: ConversasL
     const interval = setInterval(fetchConversas, 10000)
     return () => clearInterval(interval)
   }, [fetchConversas])
+
+  const sincronizar = async () => {
+    setSyncing(true)
+    try {
+      const data = await api.post<{ syncedChats: number; syncedMessages: number }>('/chats/sincronizar', {})
+      toast.success(`${data.syncedChats} conversa${data.syncedChats !== 1 ? 's' : ''} e ${data.syncedMessages} mensagen${data.syncedMessages !== 1 ? 's' : ''} importada${data.syncedMessages !== 1 ? 's' : ''}`)
+      fetchConversas()
+    } catch (err: unknown) {
+      toast.error((err as { message?: string })?.message ?? 'Erro ao sincronizar')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const iniciarConversa = async () => {
     const numero = newNumber.replace(/\D/g, '')
@@ -117,6 +131,9 @@ export function ConversasList({ selectedContatoId, onSelectContato }: ConversasL
         <div className="flex items-center justify-between h-12">
           <h1 className="text-[22px] font-bold text-[#111b21] dark:text-[#e9edef] pl-1 tracking-tight">Conversas</h1>
           <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full" title="Sincronizar com WhatsApp" onClick={sincronizar} disabled={syncing}>
+              {syncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <DownloadCloud className="h-5 w-5" />}
+            </Button>
             <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full" onClick={fetchConversas}>
               <RefreshCw className="h-5 w-5" />
             </Button>
@@ -140,9 +157,13 @@ export function ConversasList({ selectedContatoId, onSelectContato }: ConversasL
         {loading ? (
           <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-gray-300" /></div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-            <WifiOff className="h-10 w-10 opacity-20" />
-            <p className="text-sm">Nenhuma conversa encontrada</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground px-4 text-center">
+            <DownloadCloud className="h-10 w-10 opacity-20" />
+            <p className="text-sm font-medium">Nenhuma conversa ainda</p>
+            <p className="text-xs opacity-60">Clique em <DownloadCloud className="inline h-3 w-3" /> para importar o histórico do WhatsApp conectado.</p>
+            <button onClick={sincronizar} disabled={syncing} className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold underline underline-offset-2 disabled:opacity-50">
+              {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
+            </button>
           </div>
         ) : filtered.map((c) => {
           const isActive = selectedContatoId === c.contatoId
