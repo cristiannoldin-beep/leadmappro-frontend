@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { MessageCircle, LogOut, AlertTriangle } from 'lucide-react'
 
-const SUPORTE_WHATSAPP = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? '5511999999999'
+const SUPORTE_WHATSAPP = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? '5547999821006'
 
 export default function ContaSuspensaPage() {
   const { user, signOut } = useAuth()
