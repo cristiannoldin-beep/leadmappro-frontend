@@ -62,10 +62,19 @@ import {
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useTheme } from 'next-themes'
 
+interface PlanLimits {
+  leads?: number
+  listas?: number
+  campanhas?: number
+  validacoesWhatsapp?: number
+  enriquecimentos?: number
+}
+
 interface Plan {
   id: string
   name: string
   price: number
+  limits?: PlanLimits
 }
 
 interface Owner {
@@ -152,6 +161,7 @@ export default function AdminPage() {
   const [listaContatos, setListaContatos] = useState<AdminContato[]>([])
   const [loadingContatos, setLoadingContatos] = useState(false)
   const [novoClienteOpen, setNovoClienteOpen] = useState(false)
+  const [novoPlanoOpen, setNovoPlanoOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('todos')
   const [sheetTab, setSheetTab] = useState<'geral' | 'listas'>('geral')
 
@@ -605,10 +615,18 @@ export default function AdminPage() {
 
         {/* PLANOS TAB */}
         {activeTab === 'planos' && (
-          <div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-400">{plans.length} plano{plans.length !== 1 ? 's' : ''}</span>
+              <Button size="sm" onClick={() => setNovoPlanoOpen(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold gap-2 rounded-xl shadow-lg shadow-blue-600/25">
+                <UserPlus className="h-3.5 w-3.5" /> Novo Plano
+              </Button>
+            </div>
             {plans.length === 0 ? (
-              <div className="text-center py-16">
-                <p className="text-slate-500">Nenhum plano cadastrado. Insira planos diretamente no banco de dados.</p>
+              <div className="text-center py-16 rounded-2xl border border-white/5 bg-slate-900">
+                <DollarSign className="h-8 w-8 text-slate-700 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Nenhum plano cadastrado ainda</p>
+                <p className="text-xs text-slate-600 mt-1">Clique em "Novo Plano" para criar o primeiro.</p>
               </div>
             ) : (
               <div className="grid md:grid-cols-3 gap-6">
@@ -864,6 +882,9 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Novo plano modal */}
+      <NovoPlanoModal open={novoPlanoOpen} onOpenChange={setNovoPlanoOpen} onSuccess={(plan) => setPlans((prev) => [...prev, plan])} />
+
       {/* Novo cliente modal */}
       <NovoClienteModal open={novoClienteOpen} onOpenChange={setNovoClienteOpen} onSuccess={fetchData} />
     </div>
@@ -872,8 +893,16 @@ export default function AdminPage() {
 
 // ── Plan Card ───────────────────────────────────────────────────────────────
 
+const LIMIT_LABELS: { key: keyof PlanLimits; label: string }[] = [
+  { key: 'leads', label: 'Leads' },
+  { key: 'listas', label: 'Listas' },
+  { key: 'campanhas', label: 'Campanhas' },
+  { key: 'validacoesWhatsapp', label: 'Valid. WhatsApp' },
+  { key: 'enriquecimentos', label: 'Enriquecimentos' },
+]
+
 interface PlanCardProps {
-  plan: Plan & { limits?: Record<string, unknown> }
+  plan: Plan
   onSave: (updated: { name: string; price: number }) => Promise<void>
 }
 
@@ -910,13 +939,119 @@ function PlanCard({ plan, onSave }: PlanCardProps) {
           <span className="text-xs text-slate-500">/mês</span>
         </div>
       </div>
-      <div className="p-6 border-t border-white/5 mt-auto">
+      {plan.limits && Object.keys(plan.limits).length > 0 && (
+        <div className="px-6 py-4 border-b border-white/5 space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Limites</p>
+          {LIMIT_LABELS.filter(({ key }) => plan.limits?.[key] !== undefined).map(({ key, label }) => (
+            <div key={key} className="flex justify-between items-center">
+              <span className="text-xs text-slate-500">{label}</span>
+              <span className="text-xs font-bold text-white">{(plan.limits?.[key] ?? 0).toLocaleString('pt-BR')}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="p-6 mt-auto">
         <Button onClick={handleSave} disabled={saving} className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl gap-2">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Salvar Configuração
         </Button>
       </div>
     </div>
+  )
+}
+
+// ── Novo Plano Modal ────────────────────────────────────────────────────────
+
+interface NovoPlanoModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess: (plan: Plan) => void
+}
+
+function NovoPlanoModal({ open, onOpenChange, onSuccess }: NovoPlanoModalProps) {
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: '', price: '' })
+  const [limits, setLimits] = useState<Record<keyof PlanLimits, string>>({
+    leads: '',
+    listas: '',
+    campanhas: '',
+    validacoesWhatsapp: '',
+    enriquecimentos: '',
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const parsedLimits: PlanLimits = {}
+      for (const { key } of LIMIT_LABELS) {
+        const val = limits[key]
+        if (val !== '') parsedLimits[key] = parseInt(val, 10)
+      }
+      const { plan } = await api.post<{ plan: Plan }>('/admin/plans', {
+        name: form.name,
+        price: parseFloat(form.price) || 0,
+        limits: parsedLimits,
+      })
+      toast.success('Plano criado!')
+      onSuccess(plan)
+      onOpenChange(false)
+      setForm({ name: '', price: '' })
+      setLimits({ leads: '', listas: '', campanhas: '', validacoesWhatsapp: '', enriquecimentos: '' })
+    } catch (err: unknown) {
+      toast.error((err as { message?: string })?.message ?? 'Erro ao criar plano')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-slate-900 border border-white/10 rounded-2xl sm:max-w-md text-white">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-blue-400 mb-2">
+            <DollarSign className="h-5 w-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Novo Plano</span>
+          </div>
+          <DialogTitle className="text-2xl font-black tracking-tight text-white">Criar Plano</DialogTitle>
+          <DialogDescription className="text-slate-400">Defina nome, preço e limites do novo plano.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <div>
+            <Label className="text-xs font-bold uppercase text-slate-500">Nome do Plano</Label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ex: Profissional" required className="mt-1.5 h-12 rounded-xl bg-slate-800 border-white/10 text-white" />
+          </div>
+          <div>
+            <Label className="text-xs font-bold uppercase text-slate-500">Preço (R$/mês)</Label>
+            <Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="197.00" required className="mt-1.5 h-12 rounded-xl bg-slate-800 border-white/10 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Limites mensais <span className="normal-case font-normal text-slate-600">(deixe vazio = ilimitado)</span></p>
+            <div className="grid grid-cols-2 gap-3">
+              {LIMIT_LABELS.map(({ key, label }) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-slate-500">{label}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={limits[key]}
+                    onChange={(e) => setLimits((l) => ({ ...l, [key]: e.target.value }))}
+                    placeholder="∞"
+                    className="mt-1 h-10 rounded-xl bg-slate-800 border-white/10 text-white text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting} className="text-slate-400 hover:text-white font-bold">Cancelar</Button>
+            <Button type="submit" disabled={submitting} className="h-12 px-8 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl">
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Criando...</> : 'Criar Plano'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
