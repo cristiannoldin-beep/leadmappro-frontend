@@ -139,7 +139,9 @@ export default function AdminPage() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
-  const [activeTab, setActiveTab] = useState<'clientes' | 'planos' | 'tema'>('clientes')
+  const [activeTab, setActiveTab] = useState<'clientes' | 'planos' | 'tema' | 'config'>('clientes')
+  const [trialDays, setTrialDays] = useState<number>(14)
+  const [savingConfig, setSavingConfig] = useState(false)
   const { theme, setTheme } = useTheme()
   const [search, setSearch] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -161,14 +163,16 @@ export default function AdminPage() {
     if (user?.role !== 'admin') return
     setLoadingAccounts(true)
     try {
-      const [accData, plansData, statsData] = await Promise.all([
+      const [accData, plansData, statsData, configData] = await Promise.all([
         api.get<{ accounts: Account[] }>('/admin/accounts'),
         api.get<{ plans: Plan[] }>('/admin/plans').catch(() => ({ plans: [] })),
         api.get<Stats>('/admin/stats').catch(() => ({ total: 0, active: 0, openaiCost: 0, mapsCost: 0 })),
+        api.get<{ trialDays: number }>('/admin/system-config').catch(() => ({ trialDays: 14 })),
       ])
       setAccounts(accData.accounts ?? [])
       setPlans(plansData.plans ?? [])
       setStats(statsData)
+      setTrialDays(configData.trialDays ?? 14)
     } catch {
       toast.error('Erro ao carregar dados')
     } finally {
@@ -309,12 +313,12 @@ export default function AdminPage() {
 
         {/* Tab switcher */}
         <div className="flex items-center gap-1 bg-slate-900 border border-white/5 rounded-2xl p-1 w-fit">
-          {(['clientes', 'planos', 'tema'] as const).map((tab) => (
+          {(['clientes', 'planos', 'tema', 'config'] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={cn('px-5 py-2 rounded-xl text-sm font-bold capitalize transition-all',
                 activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'
               )}>
-              {tab === 'clientes' ? 'Clientes' : tab === 'planos' ? 'Planos & Limites' : 'Tema'}
+              {tab === 'clientes' ? 'Clientes' : tab === 'planos' ? 'Planos & Limites' : tab === 'tema' ? 'Tema' : 'Configurações'}
             </button>
           ))}
         </div>
@@ -528,6 +532,73 @@ export default function AdminPage() {
               <p className="text-xs text-slate-500 leading-relaxed">
                 <span className="font-bold text-slate-400">Nota:</span> A preferência de tema é salva localmente por sessão. Para definir o padrão global da plataforma para novos usuários, configure a chave <code className="text-blue-400 text-[11px]">NEXT_PUBLIC_DEFAULT_THEME</code> nas variáveis de ambiente do deploy.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* CONFIGURAÇÕES TAB */}
+        {activeTab === 'config' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h2 className="text-lg font-black text-white">Configurações do Sistema</h2>
+              <p className="text-sm text-slate-400 mt-1">Parâmetros globais da plataforma.</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-slate-900 p-6 space-y-6">
+              <div className="space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dias de Trial</p>
+                <div className="flex items-center gap-4">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={trialDays}
+                    onChange={(e) => setTrialDays(Number(e.target.value))}
+                    className="w-32 h-12 bg-slate-800 border-white/10 text-white text-lg font-black rounded-xl text-center"
+                  />
+                  <span className="text-sm text-slate-500">dias para novos cadastros</span>
+                </div>
+                <Button
+                  onClick={async () => {
+                    setSavingConfig(true)
+                    try {
+                      await api.post('/admin/system-config', { trialDays })
+                      toast.success('Configuração salva!')
+                    } catch {
+                      toast.error('Erro ao salvar configuração')
+                    } finally {
+                      setSavingConfig(false)
+                    }
+                  }}
+                  disabled={savingConfig}
+                  className="h-11 px-8 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl gap-2"
+                >
+                  {savingConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Salvar
+                </Button>
+              </div>
+
+              <div className="border-t border-white/5 pt-6 space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ações de Manutenção</p>
+                <div>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const res = await api.post<{ suspendidas: number }>('/admin/expirar-trials', {})
+                        toast.success(`${res.suspendidas} conta${res.suspendidas !== 1 ? 's' : ''} suspensa${res.suspendidas !== 1 ? 's' : ''}`)
+                        fetchData()
+                      } catch {
+                        toast.error('Erro ao expirar trials')
+                      }
+                    }}
+                    className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 font-bold rounded-xl"
+                  >
+                    Expirar trials vencidos agora
+                  </Button>
+                  <p className="text-xs text-slate-600 mt-2">Suspende manualmente todas as contas em trial cujo prazo já venceu.</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
