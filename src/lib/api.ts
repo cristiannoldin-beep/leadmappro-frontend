@@ -7,6 +7,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Erro desconhecido.' }))
+    if (res.status === 402) {
+      if (typeof window !== 'undefined') window.location.href = '/conta-suspensa'
+      throw new Error(error.message ?? 'Trial encerrado.')
+    }
     throw new Error(error.message ?? `HTTP ${res.status}`)
   }
   if (res.status === 204) return undefined as T
