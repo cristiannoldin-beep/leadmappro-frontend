@@ -585,8 +585,8 @@ export default function AdminPage() {
                     variant="outline"
                     onClick={async () => {
                       try {
-                        const res = await api.post<{ suspendidas: number }>('/admin/expirar-trials', {})
-                        toast.success(`${res.suspendidas} conta${res.suspendidas !== 1 ? 's' : ''} suspensa${res.suspendidas !== 1 ? 's' : ''}`)
+                        const res = await api.post<{ suspensos: number }>('/admin/expirar-trials', {})
+                        toast.success(`${res.suspensos} conta${res.suspensos !== 1 ? 's' : ''} suspensa${res.suspensos !== 1 ? 's' : ''}`)
                         fetchData()
                       } catch {
                         toast.error('Erro ao expirar trials')
