@@ -86,7 +86,11 @@ export function ConversasList({ selectedContatoId, onSelectContato }: ConversasL
     setSyncing(true)
     try {
       const data = await api.post<{ syncedChats: number; syncedMessages: number }>('/chats/sincronizar', {})
-      toast.success(`${data.syncedChats} conversa${data.syncedChats !== 1 ? 's' : ''} e ${data.syncedMessages} mensagen${data.syncedMessages !== 1 ? 's' : ''} importada${data.syncedMessages !== 1 ? 's' : ''}`)
+      if (data.syncedChats === 0 && data.syncedMessages === 0) {
+        toast.info('Nenhuma conversa nova encontrada. Se o histórico ainda não aparece, reconecte o WhatsApp para ativar a sincronização completa.')
+      } else {
+        toast.success(`${data.syncedChats} conversa${data.syncedChats !== 1 ? 's' : ''} e ${data.syncedMessages} mensagen${data.syncedMessages !== 1 ? 's' : ''} importada${data.syncedMessages !== 1 ? 's' : ''}`)
+      }
       fetchConversas()
     } catch (err: unknown) {
       toast.error((err as { message?: string })?.message ?? 'Erro ao sincronizar')
